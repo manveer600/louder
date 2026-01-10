@@ -40,22 +40,36 @@ const EmailModal = ({ event, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
+      // Validate event has _id
+      if (!event || !event._id) {
+        setError('Invalid event data. Please refresh the page and try again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Submitting email for event:', event._id);
+      
       const response = await userAPI.saveEmail({
         email: email.trim(),
         eventId: event._id,
         consentGiven: consent
       });
 
-      if (response.success) {
+      console.log('Email API response:', response);
+
+      if (response && response.success) {
         // Success - redirect will happen in parent component
         onSuccess();
       } else {
-        setError(response.message || 'Failed to save email. Please try again.');
+        const errorMessage = response?.message || 'Failed to save email. Please try again.';
+        console.error('Email save failed:', errorMessage);
+        setError(errorMessage);
         setLoading(false);
       }
     } catch (err) {
-      setError(err.message || 'An error occurred. Please try again.');
       console.error('Email submission error:', err);
+      const errorMessage = err?.message || err?.response?.data?.message || 'An error occurred. Please try again.';
+      setError(errorMessage);
       setLoading(false);
     }
   };

@@ -136,6 +136,13 @@ const EventListing = () => {
 
   // Handle "GET TICKETS" click
   const handleGetTickets = (event) => {
+    // Validate event object has required fields
+    if (!event || !event._id) {
+      console.error('Invalid event object:', event);
+      setError('Invalid event data. Please refresh the page and try again.');
+      return;
+    }
+    console.log('Opening email modal for event:', event._id, event.title);
     setSelectedEvent(event);
     setShowEmailModal(true);
   };
@@ -149,7 +156,8 @@ const EventListing = () => {
   // Handle email submission success
   const handleEmailSubmitted = () => {
     if (selectedEvent && selectedEvent.originalEventUrl) {
-      // Redirect to original event URL
+      // Always redirect to the event URL (now updated to use category pages instead of fake event pages)
+      // In production with real scraping, these will be actual event URLs
       window.open(selectedEvent.originalEventUrl, '_blank');
     }
     handleEmailModalClose();

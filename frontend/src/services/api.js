@@ -120,9 +120,12 @@ export const userAPI = {
    */
   saveEmail: async (data) => {
     try {
+      console.log('Sending email save request:', { email: data.email, eventId: data.eventId, consentGiven: data.consentGiven });
       const response = await api.post('/users/email', data);
-      return response.data;
+      console.log('Email save response:', response);
+      return response;
     } catch (error) {
+      console.error('Email save API error:', error);
       throw error;
     }
   },

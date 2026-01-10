@@ -27,7 +27,7 @@ const sampleEvents = [
     category: 'Music',
     imageUrl: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-music-festival'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/music-events/'
   },
   {
     title: 'Sydney FC vs Melbourne Victory',
@@ -39,7 +39,7 @@ const sampleEvents = [
     category: 'Sports',
     imageUrl: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-sports-event'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/sports-events/'
   },
   {
     title: 'Stand-Up Comedy Night',
@@ -51,7 +51,7 @@ const sampleEvents = [
     category: 'Comedy',
     imageUrl: 'https://images.unsplash.com/photo-1508341591423-4347099e1f19?w=800',
     sourceWebsite: 'Meetup',
-    originalEventUrl: 'https://www.meetup.com/sample-comedy-night'
+    originalEventUrl: 'https://www.meetup.com/find/events/?location=australia--sydney&categoryId=10'
   },
   {
     title: 'Sydney Opera House: The Phantom of the Opera',
@@ -63,7 +63,7 @@ const sampleEvents = [
     category: 'Theater',
     imageUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-theater-show'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/theater-events/'
   },
   {
     title: 'Tech Innovation Summit 2024',
@@ -75,7 +75,7 @@ const sampleEvents = [
     category: 'Technology',
     imageUrl: 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-tech-summit'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/technology-events/'
   },
   {
     title: 'Art Gallery Opening: Modern Australian Art',
@@ -87,7 +87,7 @@ const sampleEvents = [
     category: 'Arts',
     imageUrl: 'https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-art-exhibition'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/arts-events/'
   },
   {
     title: 'Food & Wine Festival',
@@ -99,7 +99,7 @@ const sampleEvents = [
     category: 'Food & Drink',
     imageUrl: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-food-festival'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/food-drink-events/'
   },
   {
     title: 'Business Networking Breakfast',
@@ -111,7 +111,7 @@ const sampleEvents = [
     category: 'Business',
     imageUrl: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800',
     sourceWebsite: 'Meetup',
-    originalEventUrl: 'https://www.meetup.com/sample-business-networking'
+    originalEventUrl: 'https://www.meetup.com/find/events/?location=australia--sydney&categoryId=2'
   },
   {
     title: 'Yoga in the Park',
@@ -123,7 +123,7 @@ const sampleEvents = [
     category: 'Health & Wellness',
     imageUrl: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=800',
     sourceWebsite: 'Meetup',
-    originalEventUrl: 'https://www.meetup.com/sample-yoga-class'
+    originalEventUrl: 'https://www.meetup.com/find/events/?location=australia--sydney&categoryId=32'
   },
   {
     title: 'Family Fun Day',
@@ -135,7 +135,7 @@ const sampleEvents = [
     category: 'Family',
     imageUrl: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=800',
     sourceWebsite: 'Eventbrite',
-    originalEventUrl: 'https://www.eventbrite.com.au/e/sample-family-event'
+    originalEventUrl: 'https://www.eventbrite.com.au/d/australia--sydney/family-events/'
   }
 ];
 
@@ -145,10 +145,14 @@ async function addSampleEvents() {
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB');
 
-    // Delete old sample events (optional - comment out if you want to keep them)
-    console.log('Clearing old sample events (if any)...');
+    // Delete old sample events with fake URLs (optional - comment out if you want to keep them)
+    console.log('Clearing old sample events with fake URLs (if any)...');
     await Event.deleteMany({
-      originalEventUrl: { $regex: /sample-(music-festival|sports-event|comedy-night|theater-show|tech-summit|art-exhibition|food-festival|business-networking|yoga-class|family-event)/ }
+      $or: [
+        { originalEventUrl: { $regex: /sample-/ } },
+        { originalEventUrl: { $regex: /eventbrite.com.au\/e\/sample/ } },
+        { originalEventUrl: { $regex: /meetup.com\/sample/ } }
+      ]
     });
 
     console.log('Adding sample events with future dates...');

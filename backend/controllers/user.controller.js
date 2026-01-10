@@ -3,6 +3,7 @@
  * Handles user email capture and analytics
  */
 
+const mongoose = require('mongoose');
 const emailService = require('../services/email.service');
 const logger = require('../utils/logger');
 const { MESSAGES, EMAIL_REGEX } = require('../utils/constants');
@@ -27,6 +28,14 @@ class UserController {
         return res.status(400).json({
           success: false,
           message: 'Event ID is required'
+        });
+      }
+
+      // Validate ObjectId format
+      if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid Event ID format'
         });
       }
 
