@@ -1,0 +1,123 @@
+/**
+ * Email Service
+ * Handles email capture and storage for analytics/marketing
+ */
+
+const User = require('../models/User.model');
+const Event = require('../models/Event.model');
+const logger = require('../utils/logger');
+const { EMAIL_REGEX } = require('../utils/constants');
+
+class EmailService {
+  /**
+   * Save email with consent for event ticket request
+   */
+  async saveEmail(data) {
+    try {
+      const { email, eventId, consentGiven, source = 'event_listing', ipAddress, userAgent, metadata } = data;
+
+      // Validate email
+      if (!email || !EMAIL_REGEX.test(email)) {
+        throw new Error('Invalid email address');
+      }
+
+      // Validate consent
+      if (!consentGiven) {
+        throw new Error('Email consent is required');
+      }
+
+      // Validate event exists
+      const event = await Event.findById(eventId);
+      if (!event) {
+        throw new Error('Event not found');
+      }
+
+      // Create user record (allow multiple entries for same email + event for analytics)
+      const user = new User({
+        email: email.toLowerCase().trim(),
+        eventId: event._id,
+        eventTitle: event.title,
+        eventUrl: event.originalEventUrl,
+        consentGiven: consentGiven,
+        source: source,
+        ipAddress: ipAddress || '',
+        userAgent: userAgent || '',
+        metadata: metadata || {}
+      });
+
+      await user.save();
+
+      logger.info(`Email saved for event ${eventId}: ${email}`);
+
+      return {
+        success: true,
+        user: {
+          id: user._id,
+          email: user.email,
+          eventId: user.eventId,
+          consentGiven: user.consentGiven
+        },
+        event: {
+          id: event._id,
+          title: event.title,
+          originalEventUrl: event.originalEventUrl
+        }
+      };
+    } catch (error) {
+      logger.error('Email service error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get email statistics
+   */
+  async getEmailStats() {
+    try {
+      const totalEmails = await User.countDocuments();
+      const emailsWithConsent = await User.countDocuments({ consentGiven: true });
+      const emailsWithoutConsent = await User.countDocuments({ consentGiven: false });
+
+      const emailsByEvent = await User.aggregate([
+        {
+          $group: {
+            _id: '$eventId',
+            count: { $sum: 1 },
+            consents: { $sum: { $cond: ['$consentGiven', 1, 0] } }
+          }
+        },
+        {
+          $lookup: {
+            from: 'events',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'event'
+          }
+        },
+        { $unwind: '$event' },
+        {
+          $project: {
+            eventTitle: '$event.title',
+            count: 1,
+            consents: 1
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
+
+      return {
+        totalEmails,
+        emailsWithConsent,
+        emailsWithoutConsent,
+        topEvents: emailsByEvent
+      };
+    } catch (error) {
+      logger.error('Error getting email stats:', error);
+      return null;
+    }
+  }
+}
+
+module.exports = new EmailService();
+
