@@ -13,11 +13,14 @@ console.log('🔧 Setting up environment files...\n');
 const backendEnvPath = path.join(__dirname, 'backend', '.env');
 const backendEnvContent = `NODE_ENV=development
 PORT=5000
-MONGODB_URI=mongodb+srv://singhmanveer645:waheguru@cluster0.uk9srd7.mongodb.net/louder
+MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE
 FRONTEND_URL=http://localhost:3000
 API_VERSION=v1
 SCRAPING_INTERVAL_HOURS=6
 LOG_LEVEL=info
+
+# ⚠️ SECURITY WARNING: Replace the MONGODB_URI placeholders with your actual MongoDB Atlas credentials
+# Never commit this file to version control
 `;
 
 if (!fs.existsSync(backendEnvPath)) {

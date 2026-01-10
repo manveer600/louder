@@ -34,8 +34,10 @@ If you're seeing "Failed to fetch events" on the frontend, follow these steps:
 
 1. **Verify MongoDB URI in `.env`**:
    ```env
-   MONGODB_URI=mongodb+srv://singhmanveer645:waheguru@cluster0.uk9srd7.mongodb.net/louder
+   MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE
    ```
+   
+   **⚠️ SECURITY**: Use your actual MongoDB Atlas credentials. Never share or commit credentials.
 
 2. **Check MongoDB Atlas Network Access**:
    - Go to MongoDB Atlas dashboard

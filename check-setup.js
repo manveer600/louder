@@ -28,7 +28,7 @@ if (fs.existsSync(backendEnvPath)) {
   console.log('  📝 Create it with:');
   console.log('     NODE_ENV=development');
   console.log('     PORT=5000');
-  console.log('     MONGODB_URI=mongodb+srv://singhmanveer645:waheguru@cluster0.uk9srd7.mongodb.net/louder');
+  console.log('     MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/YOUR_DATABASE');
   console.log('     FRONTEND_URL=http://localhost:3000');
   console.log('     API_VERSION=v1');
   console.log('     SCRAPING_INTERVAL_HOURS=6');
