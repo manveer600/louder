@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 const GMAIL_USER = process.env.USER || '';
 const GMAIL_APP_PASSWORD = process.env.APP_PASSWORD || '';
 
+console.log(GMAIL_USER, GMAIL_APP_PASSWORD);
 // Create transporter
 let transporter = null;
 

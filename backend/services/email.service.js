@@ -112,35 +112,45 @@ class EmailService {
 
       logger.info(`Email saved for event ${eventId}: ${normalizedEmail}`);
 
-      // Send confirmation email (fire and forget - don't block response)
-      sendConfirmationEmail(normalizedEmail, event)
-        .then(result => {
-          if (result.success) {
-            // Mark email as sent
-            eventInterest.emailSent = true;
-            eventInterest.save().catch(err => logger.error('Error updating emailSent flag:', err));
-            
-            logger.info(`✅ Confirmation email sent to ${normalizedEmail} for event: ${event.title}`);
-            logger.info(`   Message ID: ${result.messageId}`);
+      // Send confirmation email after saving to database
+      let emailSent = false;
+      let emailError = null;
+      
+      try {
+        const emailResult = await sendConfirmationEmail(normalizedEmail, event);
+        
+        if (emailResult.success) {
+          // Mark email as sent
+          eventInterest.emailSent = true;
+          await eventInterest.save();
+          emailSent = true;
+          
+          logger.info(`✅ Confirmation email sent to ${normalizedEmail} for event: ${event.title}`);
+          logger.info(`   Message ID: ${emailResult.messageId}`);
+        } else {
+          emailError = emailResult.error || emailResult.message;
+          
+          if (emailResult.configured === false) {
+            logger.warn(`⚠️  Email not configured. To enable email sending:`);
+            logger.warn(`   Add USER and APP_PASSWORD to backend/.env`);
+            logger.warn(`   Email: ${normalizedEmail}, Event: ${event.title}`);
           } else {
-            if (result.configured === false) {
-              logger.warn(`⚠️  Email not configured. To enable email sending:`);
-              logger.warn(`   Add USER and APP_PASSWORD to backend/.env`);
-              logger.warn(`   Email: ${normalizedEmail}, Event: ${event.title}`);
-            } else {
-              logger.error(`❌ Failed to send confirmation email to ${normalizedEmail}:`);
-              logger.error(`   Error: ${result.error || result.message}`);
-            }
+            logger.error(`❌ Failed to send confirmation email to ${normalizedEmail}:`);
+            logger.error(`   Error: ${emailError}`);
           }
-        })
-        .catch(error => {
-          logger.error(`❌ Error sending confirmation email to ${normalizedEmail}:`, error);
-          // Don't throw - email sending failure shouldn't break the user flow
-        });
+        }
+      } catch (error) {
+        emailError = error.message;
+        logger.error(`❌ Error sending confirmation email to ${normalizedEmail}:`, error);
+        // Don't throw - email sending failure shouldn't break the user flow
+        // Email is still saved in database, just not sent
+      }
 
       return {
         success: true,
         alreadyExists: false,
+        emailSent: emailSent,
+        emailError: emailError || undefined,
         interest: {
           id: eventInterest._id,
           email: eventInterest.email,
