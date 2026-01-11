@@ -73,6 +73,13 @@ const EventListing = () => {
           totalPages: 1
         };
         setPagination(newPagination);
+        
+        // Update category counts from the same filtered dataset
+        if (response.data?.categoryCounts && Array.isArray(response.data.categoryCounts)) {
+          console.log('Updating category counts from events response:', response.data.categoryCounts);
+          setCategories(response.data.categoryCounts);
+        }
+        
         setError(null); // Clear any previous errors
       } else {
         setError(response?.message || 'Failed to fetch events');
@@ -132,9 +139,9 @@ const EventListing = () => {
 
   // Initial load
   useEffect(() => {
-    fetchEvents(1);
-    fetchCategories();
-  }, []);
+    initializeCategories(); // Initialize with default structure
+    fetchEvents(1); // Category counts will come from this response
+  }, [initializeCategories]);
 
   // Refetch when filters change
   useEffect(() => {

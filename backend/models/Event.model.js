@@ -136,7 +136,7 @@ eventSchema.statics.generateDuplicateHash = function(title, date, venue) {
   return crypto.createHash('sha256').update(combined).digest('hex');
 };
 
-// Pre-save hook to ensure hashes are set
+// Pre-save hook to ensure hashes are set and category is normalized
 eventSchema.pre('save', function(next) {
   if (!this.urlHash) {
     this.urlHash = this.constructor.generateUrlHash(this.originalEventUrl);
@@ -148,6 +148,38 @@ eventSchema.pre('save', function(next) {
       this.venue
     );
   }
+  
+  // Normalize category: trim whitespace and ensure it matches enum
+  if (this.category) {
+    const normalizedCategory = this.category.trim();
+    const validCategories = [
+      'Music',
+      'Sports',
+      'Comedy',
+      'Theater',
+      'Arts',
+      'Technology',
+      'Food & Drink',
+      'Business',
+      'Education',
+      'Health & Wellness',
+      'Family',
+      'Other'
+    ];
+    
+    // Find matching category (case-insensitive)
+    const matchedCategory = validCategories.find(
+      cat => cat.toLowerCase() === normalizedCategory.toLowerCase()
+    );
+    
+    if (matchedCategory) {
+      this.category = matchedCategory; // Use the exact enum value
+    } else {
+      // If no match, default to 'Other'
+      this.category = 'Other';
+    }
+  }
+  
   this.lastUpdated = new Date();
   next();
 });

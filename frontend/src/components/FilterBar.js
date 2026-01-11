@@ -180,7 +180,7 @@ const FilterBar = ({ categories, filters, onFilterChange }) => {
                   key={cat.name || cat}
                   onClick={() => handleCategoryChange(cat.name || cat)}
                   className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                    filters.category === (cat.name || cat)
+                    filters.category && (filters.category.trim().toLowerCase() === (cat.name || cat).toString().trim().toLowerCase())
                       ? 'bg-primary-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}

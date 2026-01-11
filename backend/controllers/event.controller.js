@@ -34,9 +34,16 @@ class EventController {
       // Build query
       const query = {};
 
-      // Filter by category
-      if (category && CATEGORIES.includes(category)) {
-        query.category = category;
+      // Filter by category - normalize for case-insensitive matching
+      if (category) {
+        const normalizedCategory = category.trim();
+        // Find matching category (case-insensitive)
+        const matchedCategory = CATEGORIES.find(
+          cat => cat.toLowerCase() === normalizedCategory.toLowerCase()
+        );
+        if (matchedCategory) {
+          query.category = matchedCategory; // Use exact enum value
+        }
       }
 
       // Filter by date range
@@ -159,6 +166,66 @@ class EventController {
 
       logger.info(`Fetched ${events.length} events (page ${page}, total: ${total})`);
 
+      // Calculate category counts from the SAME filtered dataset
+      // This ensures counts match the displayed events
+      let categoryCounts = {};
+      
+      if (latitude && longitude) {
+        // For location-based queries, count from the filtered nearbyEvents
+        const allFilteredEvents = await Event.find({ ...query, city: 'Sydney' }).lean().maxTimeMS(10000);
+        const filteredNearbyEvents = [];
+        const userLat = parseFloat(latitude);
+        const userLon = parseFloat(longitude);
+        const maxRadius = parseFloat(radius) || 50;
+        
+        for (const event of allFilteredEvents) {
+          let eventLat, eventLon;
+          if (event.latitude && event.longitude) {
+            eventLat = event.latitude;
+            eventLon = event.longitude;
+          } else {
+            const sydneyCenter = getSydneyCenter();
+            eventLat = sydneyCenter.latitude;
+            eventLon = sydneyCenter.longitude;
+          }
+          const distance = calculateDistance(userLat, userLon, eventLat, eventLon);
+          if (distance <= maxRadius) {
+            filteredNearbyEvents.push(event);
+          }
+        }
+        
+        // Count categories from filtered events - normalize to match enum values
+        filteredNearbyEvents.forEach(event => {
+          let cat = (event.category || 'Other').trim();
+          // Normalize category to match enum (case-insensitive)
+          const matchedCategory = CATEGORIES.find(
+            c => c.toLowerCase() === cat.toLowerCase()
+          );
+          cat = matchedCategory || 'Other';
+          categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+        });
+      } else {
+        // For regular queries, count from the same query (before pagination)
+        const allFilteredEvents = await Event.find(query).lean().maxTimeMS(10000);
+        allFilteredEvents.forEach(event => {
+          let cat = (event.category || 'Other').trim();
+          // Normalize category to match enum (case-insensitive)
+          const matchedCategory = CATEGORIES.find(
+            c => c.toLowerCase() === cat.toLowerCase()
+          );
+          cat = matchedCategory || 'Other';
+          categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+        });
+      }
+      
+      // Normalize category counts to match CATEGORIES enum format
+      const normalizedCategoryCounts = CATEGORIES.map(cat => ({
+        name: cat,
+        count: categoryCounts[cat] || 0
+      }));
+
+      logger.info(`Category counts calculated from filtered dataset:`, normalizedCategoryCounts);
+
       // Always return success, even if no events found
       res.status(200).json({
         success: true,
@@ -170,7 +237,8 @@ class EventController {
             limit: limitNum,
             total: total || 0,
             totalPages: Math.ceil((total || 0) / limitNum) || 1
-          }
+          },
+          categoryCounts: normalizedCategoryCounts
         }
       });
     } catch (error) {
