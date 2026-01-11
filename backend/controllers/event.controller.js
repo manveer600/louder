@@ -7,7 +7,6 @@ const Event = require('../models/Event.model');
 const scrapingOrchestrator = require('../services/scraping/orchestrator.service');
 const logger = require('../utils/logger');
 const { calculateDistance, getSydneyCenter } = require('../utils/distance');
-const { CATEGORIES } = require('../utils/constants');
 const { MESSAGES, CATEGORIES } = require('../utils/constants');
 
 class EventController {
