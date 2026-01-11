@@ -31,10 +31,40 @@ class EventController {
         radius = 50 // Default radius in kilometers
       } = req.query;
 
-      // Build query
-      const query = {};
+      // Build base query (for category counts) - WITHOUT category filter
+      // Category counts should be based on the full dataset (with date/location filters)
+      const baseQuery = {};
 
+      // Filter by date range
+      if (dateFrom || dateTo) {
+        baseQuery.date = {};
+        if (dateFrom) {
+          baseQuery.date.$gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          baseQuery.date.$lte = new Date(dateTo);
+        }
+      } else if (upcomingOnly === 'true') {
+        // Default: show only upcoming events
+        // Use UTC to avoid timezone issues
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        baseQuery.date = { $gte: today };
+      }
+
+      // Filter by source
+      if (source) {
+        baseQuery.sourceWebsite = source;
+      }
+
+      // Ensure Sydney events only
+      baseQuery.city = 'Sydney';
+
+      // Build filtered query (for events list) - INCLUDES category filter
+      const filteredQuery = { ...baseQuery };
+      
       // Filter by category - normalize for case-insensitive matching
+      // This filter is ONLY for the events list, NOT for category counts
       if (category) {
         const normalizedCategory = category.trim();
         // Find matching category (case-insensitive)
@@ -42,34 +72,9 @@ class EventController {
           cat => cat.toLowerCase() === normalizedCategory.toLowerCase()
         );
         if (matchedCategory) {
-          query.category = matchedCategory; // Use exact enum value
+          filteredQuery.category = matchedCategory; // Use exact enum value
         }
       }
-
-      // Filter by date range
-      if (dateFrom || dateTo) {
-        query.date = {};
-        if (dateFrom) {
-          query.date.$gte = new Date(dateFrom);
-        }
-        if (dateTo) {
-          query.date.$lte = new Date(dateTo);
-        }
-      } else if (upcomingOnly === 'true') {
-        // Default: show only upcoming events
-        // Use UTC to avoid timezone issues and match category counts
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-        query.date = { $gte: today };
-      }
-
-      // Filter by source
-      if (source) {
-        query.sourceWebsite = source;
-      }
-
-      // Ensure Sydney events only
-      query.city = 'Sydney';
 
       // Sorting
       const sort = {};
@@ -101,7 +106,7 @@ class EventController {
         }
       }
 
-      // Execute query
+      // Execute query for events list (uses filteredQuery which includes category filter)
       let events, total;
       
       if (latitude && longitude) {
@@ -112,8 +117,8 @@ class EventController {
         
         logger.info(`Location-based query: user at (${userLat}, ${userLon}), max radius: ${maxRadius}km`);
         
-        // Get all Sydney events first
-        const allEvents = await Event.find({ ...query, city: 'Sydney' }).lean().maxTimeMS(10000);
+        // Get all events matching the filtered query (includes category filter)
+        const allEvents = await Event.find(filteredQuery).lean().maxTimeMS(10000);
         
         // Filter events by distance from user location
         const nearbyEvents = [];
@@ -153,32 +158,33 @@ class EventController {
         
         logger.info(`Found ${total} events within ${maxRadius}km radius. Returning ${events.length} events for page ${page}.`);
       } else {
-        // Regular query
+        // Regular query (uses filteredQuery which includes category filter)
         [events, total] = await Promise.all([
-          Event.find(query)
+          Event.find(filteredQuery)
             .sort(sort)
             .skip(skip)
             .limit(limitNum)
             .lean(),
-          Event.countDocuments(query)
+          Event.countDocuments(filteredQuery)
         ]);
       }
 
       logger.info(`Fetched ${events.length} events (page ${page}, total: ${total})`);
 
-      // Calculate category counts from the SAME filtered dataset
-      // This ensures counts match the displayed events
+      // Calculate category counts from BASE query (without category filter)
+      // Category counts should reflect the full dataset, not the filtered category
+      // This ensures clicking a category doesn't change other category counts
       let categoryCounts = {};
       
       if (latitude && longitude) {
-        // For location-based queries, count from the filtered nearbyEvents
-        const allFilteredEvents = await Event.find({ ...query, city: 'Sydney' }).lean().maxTimeMS(10000);
-        const filteredNearbyEvents = [];
+        // For location-based queries, count from base query (no category filter)
+        const allBaseEvents = await Event.find(baseQuery).lean().maxTimeMS(10000);
+        const baseNearbyEvents = [];
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
         const maxRadius = parseFloat(radius) || 50;
         
-        for (const event of allFilteredEvents) {
+        for (const event of allBaseEvents) {
           let eventLat, eventLon;
           if (event.latitude && event.longitude) {
             eventLat = event.latitude;
@@ -190,12 +196,12 @@ class EventController {
           }
           const distance = calculateDistance(userLat, userLon, eventLat, eventLon);
           if (distance <= maxRadius) {
-            filteredNearbyEvents.push(event);
+            baseNearbyEvents.push(event);
           }
         }
         
-        // Count categories from filtered events - normalize to match enum values
-        filteredNearbyEvents.forEach(event => {
+        // Count categories from base events (no category filter) - normalize to match enum values
+        baseNearbyEvents.forEach(event => {
           let cat = (event.category || 'Other').trim();
           // Normalize category to match enum (case-insensitive)
           const matchedCategory = CATEGORIES.find(
@@ -205,9 +211,9 @@ class EventController {
           categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
         });
       } else {
-        // For regular queries, count from the same query (before pagination)
-        const allFilteredEvents = await Event.find(query).lean().maxTimeMS(10000);
-        allFilteredEvents.forEach(event => {
+        // For regular queries, count from base query (no category filter, before pagination)
+        const allBaseEvents = await Event.find(baseQuery).lean().maxTimeMS(10000);
+        allBaseEvents.forEach(event => {
           let cat = (event.category || 'Other').trim();
           // Normalize category to match enum (case-insensitive)
           const matchedCategory = CATEGORIES.find(
@@ -225,8 +231,9 @@ class EventController {
         count: categoryCounts[cat] || 0
       }));
 
-      logger.info(`Category counts calculated from filtered dataset:`, normalizedCategoryCounts);
-      logger.info(`Total events in filtered dataset: ${total}, Category counts:`, categoryCounts);
+      logger.info(`Category counts calculated from BASE dataset (without category filter):`, normalizedCategoryCounts);
+      logger.info(`Events fetched from FILTERED dataset (with category filter): ${total} events`);
+      logger.info(`Category filter applied: ${category || 'none'}`);
 
       // Always return success, even if no events found
       // ALWAYS include categoryCounts in response (even when no events or no filters)
