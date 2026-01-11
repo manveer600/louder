@@ -72,6 +72,17 @@ class EventController {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
+      // Check if MongoDB is connected
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState !== 1) {
+        logger.error('[GetEvents] MongoDB not connected. ReadyState:', mongoose.connection.readyState);
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection not available. Please try again in a moment.',
+          error: 'Database not connected'
+        });
+      }
+
       // Execute query
       let events, total;
       
@@ -104,8 +115,9 @@ class EventController {
               .sort(sort)
               .skip(skip)
               .limit(limitNum)
-              .lean(),
-            Event.countDocuments(query)
+              .lean()
+              .maxTimeMS(10000), // 10 second timeout
+            Event.countDocuments(query).maxTimeMS(10000) // 10 second timeout
           ]);
           
           logger.info(`User is within ${maxRadius}km radius. Returning ${events.length} events.`);
@@ -202,10 +214,21 @@ class EventController {
    */
   async getCategories(req, res, next) {
     try {
+      // Check if MongoDB is connected
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState !== 1) {
+        logger.error('[Categories] MongoDB not connected. ReadyState:', mongoose.connection.readyState);
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection not available. Please try again in a moment.',
+          error: 'Database not connected'
+        });
+      }
+
       // Get categories with event counts from database
       // Count ALL events (not filtered by date) to show total available in each category
       // Date filtering is handled in getEvents endpoint
-      const totalEvents = await Event.countDocuments({ city: 'Sydney' });
+      const totalEvents = await Event.countDocuments({ city: 'Sydney' }).maxTimeMS(5000);
       
       logger.info(`[Categories] Counting categories for ${totalEvents} total Sydney events`);
       
@@ -230,7 +253,7 @@ class EventController {
             count: 1
           }
         }
-      ]);
+      ]).option({ maxTimeMS: 5000 }); // 5 second timeout for aggregation
       
       logger.info(`[Categories] Found ${categoriesWithCounts.length} categories with events`);
       
