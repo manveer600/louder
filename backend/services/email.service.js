@@ -7,6 +7,7 @@ const User = require('../models/User.model');
 const Event = require('../models/Event.model');
 const logger = require('../utils/logger');
 const { EMAIL_REGEX } = require('../utils/constants');
+const { sendConfirmationEmail } = require('./emailSender.service');
 
 class EmailService {
   /**
@@ -48,6 +49,20 @@ class EmailService {
       await user.save();
 
       logger.info(`Email saved for event ${eventId}: ${email}`);
+
+      // Send confirmation email (fire and forget - don't block response)
+      sendConfirmationEmail(email, event)
+        .then(result => {
+          if (result.success) {
+            logger.info(`Confirmation email sent to ${email} for event: ${event.title}`);
+          } else {
+            logger.warn(`Failed to send confirmation email to ${email}: ${result.error || result.message}`);
+          }
+        })
+        .catch(error => {
+          logger.error(`Error sending confirmation email to ${email}:`, error);
+          // Don't throw - email sending failure shouldn't break the user flow
+        });
 
       return {
         success: true,

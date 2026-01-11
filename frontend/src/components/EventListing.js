@@ -155,9 +155,14 @@ const EventListing = () => {
 
   // Handle email submission success
   const handleEmailSubmitted = () => {
+    // Show success message
+    alert(`✅ Thank you for your interest!\n\nA confirmation email has been sent to your email address.\n\nYou're now being redirected to the event page to purchase tickets.`);
+    
+    // Redirect to the actual event URL on Eventbrite/Meetup
     if (selectedEvent && selectedEvent.originalEventUrl) {
-      // Always redirect to the event URL (now updated to use category pages instead of fake event pages)
-      // In production with real scraping, these will be actual event URLs
+      // Open the event URL in a new tab
+      // Note: For sample events, this points to category pages (valid Eventbrite pages)
+      // In production with real scraping, these will be actual event detail pages
       window.open(selectedEvent.originalEventUrl, '_blank');
     }
     handleEmailModalClose();

@@ -13,6 +13,14 @@ module.exports = {
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   API_VERSION: process.env.API_VERSION || 'v1',
   SCRAPING_INTERVAL_HOURS: process.env.SCRAPING_INTERVAL_HOURS || 6,
-  LOG_LEVEL: process.env.LOG_LEVEL || 'info'
+  LOG_LEVEL: process.env.LOG_LEVEL || 'info',
+  // Email configuration
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
+  SMTP_PORT: process.env.SMTP_PORT || 587,
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  EMAIL_FROM: process.env.EMAIL_FROM || 'noreply@louder.com',
+  EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'Louder'
 };
 
