@@ -10,6 +10,32 @@ const { NODE_ENV, FRONTEND_URL, API_VERSION } = require('./config/env');
 const logger = require('./utils/logger');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
 
+// Initialize MongoDB connection for serverless (Vercel)
+// This ensures connection is ready before any routes are accessed
+const { ensureConnection } = require('./config/db');
+let connectionInitialized = false;
+
+// Initialize connection on module load (for serverless)
+const initConnection = async () => {
+  if (!connectionInitialized) {
+    try {
+      await ensureConnection();
+      connectionInitialized = true;
+      logger.info('✅ MongoDB connection initialized at app level');
+    } catch (error) {
+      logger.error('❌ Failed to initialize MongoDB connection at app level:', error);
+      // Don't throw - let individual routes handle connection
+    }
+  }
+};
+
+// Start connection initialization (non-blocking)
+if (NODE_ENV === 'production') {
+  initConnection().catch(err => {
+    logger.error('Connection initialization error:', err);
+  });
+}
+
 // Import routes
 const eventRoutes = require('./routes/event.routes');
 const userRoutes = require('./routes/user.routes');

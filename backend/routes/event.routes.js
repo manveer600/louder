@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const eventController = require('../controllers/event.controller');
+const { ensureDBConnection } = require('../middlewares/db.middleware');
 const { API_VERSION } = require('../config/env');
 
 /**
@@ -13,28 +14,28 @@ const { API_VERSION } = require('../config/env');
  * @desc    Get all events with filters
  * @access  Public
  */
-router.get('/', eventController.getEvents.bind(eventController));
+router.get('/', ensureDBConnection, eventController.getEvents.bind(eventController));
 
 /**
  * @route   GET /api/v1/events/categories
  * @desc    Get available categories with counts
  * @access  Public
  */
-router.get('/categories', eventController.getCategories.bind(eventController));
+router.get('/categories', ensureDBConnection, eventController.getCategories.bind(eventController));
 
 /**
  * @route   GET /api/v1/events/stats
  * @desc    Get event statistics
  * @access  Public
  */
-router.get('/stats', eventController.getEventStats.bind(eventController));
+router.get('/stats', ensureDBConnection, eventController.getEventStats.bind(eventController));
 
 /**
  * @route   GET /api/v1/events/:id
  * @desc    Get single event by ID
  * @access  Public
  */
-router.get('/:id', eventController.getEventById.bind(eventController));
+router.get('/:id', ensureDBConnection, eventController.getEventById.bind(eventController));
 
 /**
  * @route   POST /api/v1/events/scrape

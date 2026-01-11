@@ -72,15 +72,26 @@ class EventController {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      // Check if MongoDB is connected
+      // Ensure MongoDB connection is ready
       const mongoose = require('mongoose');
+      const { ensureConnection } = require('../config/db');
+      
+      logger.info(`[GetEvents] MongoDB readyState: ${mongoose.connection.readyState}`);
+      
+      // If not connected, establish connection
       if (mongoose.connection.readyState !== 1) {
-        logger.error('[GetEvents] MongoDB not connected. ReadyState:', mongoose.connection.readyState);
-        return res.status(503).json({
-          success: false,
-          message: 'Database connection not available. Please try again in a moment.',
-          error: 'Database not connected'
-        });
+        try {
+          logger.info('[GetEvents] Connection not ready, establishing...');
+          await ensureConnection();
+          logger.info(`[GetEvents] Connection established. ReadyState: ${mongoose.connection.readyState}`);
+        } catch (error) {
+          logger.error('[GetEvents] Failed to ensure MongoDB connection:', error);
+          return res.status(503).json({
+            success: false,
+            message: 'Database connection not available. Please try again in a moment.',
+            error: NODE_ENV === 'development' ? error.message : 'Database connection failed'
+          });
+        }
       }
 
       // Execute query
@@ -214,48 +225,89 @@ class EventController {
    */
   async getCategories(req, res, next) {
     try {
-      // Check if MongoDB is connected
+      // Ensure MongoDB connection is ready
       const mongoose = require('mongoose');
+      const { ensureConnection } = require('../config/db');
+      
+      logger.info(`[Categories] MongoDB readyState: ${mongoose.connection.readyState}`);
+      
+      // If not connected, establish connection
       if (mongoose.connection.readyState !== 1) {
-        logger.error('[Categories] MongoDB not connected. ReadyState:', mongoose.connection.readyState);
-        return res.status(503).json({
-          success: false,
-          message: 'Database connection not available. Please try again in a moment.',
-          error: 'Database not connected'
-        });
+        try {
+          logger.info('[Categories] Connection not ready, establishing...');
+          await ensureConnection();
+          logger.info(`[Categories] Connection established. ReadyState: ${mongoose.connection.readyState}`);
+          
+          // Wait a bit for connection to fully stabilize
+          if (mongoose.connection.readyState !== 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (error) {
+          logger.error('[Categories] Failed to ensure MongoDB connection:', error);
+          logger.error('[Categories] Connection error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+          });
+          return res.status(503).json({
+            success: false,
+            message: 'Database connection not available. Please try again in a moment.',
+            error: NODE_ENV === 'development' ? error.message : 'Database connection failed'
+          });
+        }
       }
 
       // Get categories with event counts from database
       // Count ALL events (not filtered by date) to show total available in each category
       // Date filtering is handled in getEvents endpoint
-      const totalEvents = await Event.countDocuments({ city: 'Sydney' }).maxTimeMS(5000);
       
-      logger.info(`[Categories] Counting categories for ${totalEvents} total Sydney events`);
+      logger.info(`[Categories] Starting category count...`);
+      
+      let totalEvents;
+      try {
+        totalEvents = await Event.countDocuments({ city: 'Sydney' }).maxTimeMS(10000);
+        logger.info(`[Categories] Total Sydney events: ${totalEvents}`);
+      } catch (countError) {
+        logger.error(`[Categories] Error counting events:`, countError);
+        throw new Error(`Failed to count events: ${countError.message}`);
+      }
       
       // Count all events by category (no date filter)
-      const categoriesWithCounts = await Event.aggregate([
-        { 
-          $match: { 
-            city: 'Sydney'
-          } 
-        },
-        {
-          $group: {
-            _id: '$category',
-            count: { $sum: 1 }
+      let categoriesWithCounts;
+      try {
+        logger.info(`[Categories] Starting aggregation...`);
+        categoriesWithCounts = await Event.aggregate([
+          { 
+            $match: { 
+              city: 'Sydney'
+            } 
+          },
+          {
+            $group: {
+              _id: '$category',
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { count: -1 } },
+          {
+            $project: {
+              _id: 0,
+              name: '$_id',
+              count: 1
+            }
           }
-        },
-        { $sort: { count: -1 } },
-        {
-          $project: {
-            _id: 0,
-            name: '$_id',
-            count: 1
-          }
-        }
-      ]).option({ maxTimeMS: 5000 }); // 5 second timeout for aggregation
-      
-      logger.info(`[Categories] Found ${categoriesWithCounts.length} categories with events`);
+        ]).option({ maxTimeMS: 10000 }); // 10 second timeout for aggregation
+        
+        logger.info(`[Categories] Aggregation completed. Found ${categoriesWithCounts.length} categories with events`);
+      } catch (aggError) {
+        logger.error(`[Categories] Aggregation error:`, aggError);
+        logger.error(`[Categories] Aggregation error details:`, {
+          name: aggError.name,
+          message: aggError.message,
+          stack: aggError.stack
+        });
+        throw new Error(`Failed to aggregate categories: ${aggError.message}`);
+      }
       
       if (categoriesWithCounts.length > 0) {
         logger.info(`[Categories] Category counts:`, JSON.stringify(categoriesWithCounts, null, 2));
@@ -295,13 +347,26 @@ class EventController {
         }
       });
     } catch (error) {
-      logger.error('Get categories error:', error);
+      logger.error('❌ Get categories error:', error);
+      logger.error('Error name:', error.name);
+      logger.error('Error message:', error.message);
       logger.error('Error stack:', error.stack);
+      
+      // Check if it's a connection error
+      if (error.message && error.message.includes('buffering timed out')) {
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection timeout. Please try again in a moment.',
+          error: 'Connection timeout'
+        });
+      }
+      
       // Return error response instead of throwing to prevent 500
       res.status(500).json({
         success: false,
         message: 'Error fetching categories',
-        error: NODE_ENV === 'development' ? error.message : 'Internal server error'
+        error: NODE_ENV === 'development' ? error.message : 'Internal server error',
+        ...(NODE_ENV === 'development' && { stack: error.stack })
       });
     }
   }

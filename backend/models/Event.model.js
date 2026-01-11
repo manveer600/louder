@@ -80,8 +80,7 @@ const eventSchema = new mongoose.Schema({
   },
   duplicateCheckHash: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   lastUpdated: {
     type: Date,

@@ -14,6 +14,19 @@ class UserController {
    */
   async checkEmail(req, res, next) {
     try {
+      // Ensure MongoDB connection is ready
+      const { ensureConnection } = require('../config/db');
+      try {
+        await ensureConnection();
+      } catch (error) {
+        logger.error('[CheckEmail] Failed to ensure MongoDB connection:', error);
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection not available. Please try again in a moment.',
+          error: 'Database connection failed'
+        });
+      }
+
       const { email, eventId } = req.query;
 
       if (!email || !EMAIL_REGEX.test(email)) {
@@ -52,6 +65,19 @@ class UserController {
    */
   async saveEmail(req, res, next) {
     try {
+      // Ensure MongoDB connection is ready
+      const { ensureConnection } = require('../config/db');
+      try {
+        await ensureConnection();
+      } catch (error) {
+        logger.error('[SaveEmail] Failed to ensure MongoDB connection:', error);
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection not available. Please try again in a moment.',
+          error: 'Database connection failed'
+        });
+      }
+
       const { email, eventId, consentGiven } = req.body;
 
       // Validation
@@ -144,6 +170,19 @@ class UserController {
    */
   async getEmailStats(req, res, next) {
     try {
+      // Ensure MongoDB connection is ready
+      const { ensureConnection } = require('../config/db');
+      try {
+        await ensureConnection();
+      } catch (error) {
+        logger.error('[GetEmailStats] Failed to ensure MongoDB connection:', error);
+        return res.status(503).json({
+          success: false,
+          message: 'Database connection not available. Please try again in a moment.',
+          error: 'Database connection failed'
+        });
+      }
+
       const stats = await emailService.getEmailStats();
 
       if (!stats) {

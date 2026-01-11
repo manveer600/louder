@@ -1,5 +1,5 @@
 const app = require('./app');
-const connectDB = require('./config/db');
+const { connectDB } = require('./config/db');
 const { PORT, NODE_ENV } = require('./config/env');
 const logger = require('./utils/logger');
 const schedulerService = require('./services/scheduler.service');
