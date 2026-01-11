@@ -8,11 +8,20 @@ import React from 'react';
 const DuplicateEmailModal = ({ isOpen, onClose, event, onRedirect }) => {
   if (!isOpen) return null;
 
-  const handleRedirectClick = () => {
-    if (onRedirect) {
-      onRedirect();
+  const handleRedirectClick = (e) => {
+    // Prevent default link behavior if it's a link click
+    if (e) {
+      e.preventDefault();
     }
-    // Don't close immediately - let redirect handle it
+    
+    if (onRedirect && event) {
+      console.log('🖱️ Manual redirect button clicked for event:', event.title);
+      onRedirect(event); // Pass event to ensure correct redirect
+    }
+    
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
@@ -91,15 +100,12 @@ const DuplicateEmailModal = ({ isOpen, onClose, event, onRedirect }) => {
         {/* Action Buttons */}
         <div className="flex flex-col space-y-3">
           {event && event.originalEventUrl && (
-            <a
-              href={event.originalEventUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               onClick={handleRedirectClick}
               className="w-full btn btn-primary py-3 font-semibold text-center"
             >
               Continue to Booking →
-            </a>
+            </button>
           )}
           <button
             onClick={onClose}

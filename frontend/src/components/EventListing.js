@@ -192,22 +192,26 @@ const EventListing = () => {
   };
 
   // Handle redirect to event page
+  // eventToRedirect parameter ensures we redirect to the correct event
   const handleRedirectToEvent = (eventToRedirect = selectedEvent) => {
     console.log('🔄 handleRedirectToEvent called');
     console.log('Event to redirect:', eventToRedirect);
     
-    if (!eventToRedirect) {
+    // Use the passed event or fallback to selectedEvent
+    const targetEvent = eventToRedirect || selectedEvent;
+    
+    if (!targetEvent) {
       console.error('❌ No event found for redirect');
       alert('Error: Event information not found. Please try again.');
       return;
     }
 
     // Use originalEventUrl from the event - this should be the correct source URL
-    let eventUrl = eventToRedirect.originalEventUrl;
+    let eventUrl = targetEvent.originalEventUrl;
     
     // Validate URL exists and is from the correct source
     if (!eventUrl || eventUrl.trim() === '') {
-      console.error('❌ No event URL found in event:', eventToRedirect);
+      console.error('❌ No event URL found in event:', targetEvent);
       alert('Error: Event URL not found. Please contact support.');
       setShowSuccessModal(false);
       setShowDuplicateModal(false);
@@ -224,7 +228,7 @@ const EventListing = () => {
     }
 
     // Verify URL matches the event source (for debugging)
-    const sourceWebsite = eventToRedirect.sourceWebsite;
+    const sourceWebsite = targetEvent.sourceWebsite;
     if (sourceWebsite === 'Eventbrite' && !eventUrl.includes('eventbrite')) {
       console.warn('⚠️ Warning: Eventbrite event has non-Eventbrite URL:', eventUrl);
     } else if (sourceWebsite === 'Meetup' && !eventUrl.includes('meetup')) {

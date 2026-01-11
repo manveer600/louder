@@ -3,19 +3,28 @@
  * Beautiful modal shown after successful email submission
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
   const [countdown, setCountdown] = useState(5);
+  const eventRef = useRef(event);
+  const hasRedirectedRef = useRef(false);
+
+  // Keep event ref updated
+  useEffect(() => {
+    eventRef.current = event;
+  }, [event]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !event) {
       setCountdown(5);
+      hasRedirectedRef.current = false;
       return;
     }
 
-    // Reset countdown when modal opens
+    // Reset countdown and redirect flag when modal opens
     setCountdown(5);
+    hasRedirectedRef.current = false;
 
     let countdownInterval;
     let redirectTimer;
@@ -23,46 +32,80 @@ const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
     // Countdown timer - decrement every second
     countdownInterval = setInterval(() => {
       setCountdown((prev) => {
-        if (prev <= 1) {
-          // When countdown reaches 1, clear interval and redirect
+        const newCount = prev - 1;
+        
+        // When countdown reaches 0, trigger redirect
+        if (newCount <= 0 && !hasRedirectedRef.current) {
+          hasRedirectedRef.current = true;
           clearInterval(countdownInterval);
-          // Small delay to ensure state update completes
+          
+          // Redirect immediately when countdown reaches 0
+          const currentEvent = eventRef.current;
+          if (onRedirect && currentEvent) {
+            console.log('⏰ Countdown reached 0, auto-redirecting to event:', currentEvent.title);
+            onRedirect(currentEvent); // Pass event to ensure correct redirect
+          }
+          
+          // Close modal after redirect
           setTimeout(() => {
-            if (onRedirect) {
-              console.log('Auto-redirecting after countdown...');
-              onRedirect();
+            if (onClose) {
+              onClose();
             }
-            onClose();
           }, 100);
+          
           return 0;
         }
-        return prev - 1;
+        
+        return newCount;
       });
     }, 1000);
 
-    // Fallback: Auto-redirect after exactly 5 seconds
+    // Fallback: Auto-redirect after exactly 5 seconds (safety net)
     redirectTimer = setTimeout(() => {
-      console.log('Fallback redirect triggered after 5 seconds');
-      clearInterval(countdownInterval);
-      if (onRedirect) {
-        onRedirect();
+      if (!hasRedirectedRef.current) {
+        hasRedirectedRef.current = true;
+        console.log('⏰ Fallback redirect triggered after 5 seconds');
+        clearInterval(countdownInterval);
+        
+        const currentEvent = eventRef.current;
+        if (onRedirect && currentEvent) {
+          console.log('🔄 Fallback redirecting to event:', currentEvent.title);
+          onRedirect(currentEvent); // Pass event to ensure correct redirect
+        }
+        
+        if (onClose) {
+          onClose();
+        }
       }
-      onClose();
     }, 5000);
 
+    // Cleanup function
     return () => {
-      if (countdownInterval) clearInterval(countdownInterval);
-      if (redirectTimer) clearTimeout(redirectTimer);
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+      if (redirectTimer) {
+        clearTimeout(redirectTimer);
+      }
     };
-  }, [isOpen, onClose, onRedirect]);
+  }, [isOpen, onClose, onRedirect, event]);
 
   if (!isOpen) return null;
 
-  const handleRedirectClick = () => {
-    if (onRedirect) {
-      onRedirect();
+  const handleRedirectClick = (e) => {
+    // Prevent default link behavior if it's a link click
+    if (e) {
+      e.preventDefault();
     }
-    onClose();
+    
+    if (onRedirect && event) {
+      console.log('🖱️ Manual redirect button clicked for event:', event.title);
+      onRedirect(event); // Pass event to ensure correct redirect
+    }
+    
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
