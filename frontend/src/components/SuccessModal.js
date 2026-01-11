@@ -191,22 +191,23 @@ const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
           </div>
 
           <p className="text-gray-700 text-center">
-            You'll be redirected to the event page in <strong className="text-primary-600 text-lg">{countdown} {countdown === 1 ? 'second' : 'seconds'}</strong> to complete your ticket purchase.
+            {countdown > 0 ? (
+              <>You'll be redirected to the event page in <strong className="text-primary-600 text-lg">{countdown} {countdown === 1 ? 'second' : 'seconds'}</strong> to complete your ticket purchase.</>
+            ) : (
+              <>Redirecting to event page...</>
+            )}
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col space-y-3">
           {event && event.originalEventUrl && (
-            <a
-              href={event.originalEventUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               onClick={handleRedirectClick}
               className="w-full btn btn-primary py-3 font-semibold text-center"
             >
               Go to Event Page →
-            </a>
+            </button>
           )}
           <button
             onClick={onClose}
