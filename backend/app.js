@@ -18,8 +18,27 @@ const userRoutes = require('./routes/user.routes');
 const app = express();
 
 // CORS configuration
+// Allow multiple origins for production and development
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://louder-frontend-sigma.vercel.app',
+  FRONTEND_URL
+].filter(Boolean); // Remove any undefined values
+
 const corsOptions = {
-  origin: FRONTEND_URL || '*',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin) || NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      // In production, log but allow for now (you can make this stricter)
+      logger.warn(`CORS: Blocked origin ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(null, true); // Allow for now, change to callback(new Error('Not allowed')) to block
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

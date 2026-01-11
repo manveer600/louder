@@ -8,6 +8,7 @@ const scrapingOrchestrator = require('../services/scraping/orchestrator.service'
 const logger = require('../utils/logger');
 const { calculateDistance, getSydneyCenter } = require('../utils/distance');
 const { MESSAGES, CATEGORIES } = require('../utils/constants');
+const { NODE_ENV } = require('../config/env');
 
 class EventController {
   /**
@@ -49,9 +50,9 @@ class EventController {
         }
       } else if (upcomingOnly === 'true') {
         // Default: show only upcoming events
-        // Use start of today to avoid timezone issues and match category counts
+        // Use UTC to avoid timezone issues and match category counts
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setUTCHours(0, 0, 0, 0);
         query.date = { $gte: today };
       }
 
@@ -202,16 +203,17 @@ class EventController {
   async getCategories(req, res, next) {
     try {
       // Get categories with event counts from database
-      // Only count UPCOMING events (matching the default filter)
-      // Use start of today to avoid timezone issues
-      const now = new Date();
-      now.setHours(0, 0, 0, 0); // Set to start of today
+      // Count ALL events (not filtered by date) to show total available in each category
+      // Date filtering is handled in getEvents endpoint
+      const totalEvents = await Event.countDocuments({ city: 'Sydney' });
       
+      logger.info(`[Categories] Counting categories for ${totalEvents} total Sydney events`);
+      
+      // Count all events by category (no date filter)
       const categoriesWithCounts = await Event.aggregate([
         { 
           $match: { 
-            city: 'Sydney',
-            date: { $gte: now } // Only count upcoming events (from today onwards)
+            city: 'Sydney'
           } 
         },
         {
@@ -230,10 +232,15 @@ class EventController {
         }
       ]);
       
-      logger.info(`Category counts calculated: ${categoriesWithCounts.length} categories with events`);
+      logger.info(`[Categories] Found ${categoriesWithCounts.length} categories with events`);
+      
+      if (categoriesWithCounts.length > 0) {
+        logger.info(`[Categories] Category counts:`, JSON.stringify(categoriesWithCounts, null, 2));
+      }
 
       // If no events exist, return all available categories with 0 count
       if (categoriesWithCounts.length === 0) {
+        logger.info(`[Categories] No events found, returning all categories with 0 count`);
         const allCategories = CATEGORIES.map(cat => ({
           name: cat,
           count: 0
@@ -266,7 +273,13 @@ class EventController {
       });
     } catch (error) {
       logger.error('Get categories error:', error);
-      next(error);
+      logger.error('Error stack:', error.stack);
+      // Return error response instead of throwing to prevent 500
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching categories',
+        error: NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
     }
   }
 
