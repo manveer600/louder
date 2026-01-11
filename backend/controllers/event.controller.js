@@ -49,7 +49,10 @@ class EventController {
         }
       } else if (upcomingOnly === 'true') {
         // Default: show only upcoming events
-        query.date = { $gte: new Date() };
+        // Use start of today to avoid timezone issues and match category counts
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        query.date = { $gte: today };
       }
 
       // Filter by source
@@ -200,12 +203,15 @@ class EventController {
     try {
       // Get categories with event counts from database
       // Only count UPCOMING events (matching the default filter)
+      // Use start of today to avoid timezone issues
       const now = new Date();
+      now.setHours(0, 0, 0, 0); // Set to start of today
+      
       const categoriesWithCounts = await Event.aggregate([
         { 
           $match: { 
             city: 'Sydney',
-            date: { $gte: now } // Only count upcoming events
+            date: { $gte: now } // Only count upcoming events (from today onwards)
           } 
         },
         {
@@ -223,6 +229,8 @@ class EventController {
           }
         }
       ]);
+      
+      logger.info(`Category counts calculated: ${categoriesWithCounts.length} categories with events`);
 
       // If no events exist, return all available categories with 0 count
       if (categoriesWithCounts.length === 0) {
