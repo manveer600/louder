@@ -3,104 +3,227 @@
  * Beautiful modal shown after successful email submission
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
   const [countdown, setCountdown] = useState(5);
-  const eventRef = useRef(event);
-  const hasRedirectedRef = useRef(false);
+  const redirectUrlRef = useRef(null);
+  const redirectTimerRef = useRef(null);
+  const countdownIntervalRef = useRef(null);
+  const performRedirectRef = useRef(null);
 
-  // Keep event ref updated
+  // Redirect function (reusable by both auto-redirect and button)
+  // Store in ref to ensure it's always accessible in setTimeout closure
+  const performRedirect = useCallback((url) => {
+    if (!url || !url.trim()) {
+      console.error('❌ Invalid redirect URL:', url);
+      alert('Error: Invalid event URL. Please contact support.');
+      return false;
+    }
+
+    // Validate URL format
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      console.error('❌ Invalid URL format:', url);
+      alert('Error: Invalid URL format. Please contact support.');
+      return false;
+    }
+
+    console.log('🚀 Performing redirect to:', url);
+    
+    // Method 1: Try window.open (preferred - opens in new tab)
+    let popupBlocked = false;
+    try {
+      const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        // Popup was likely blocked
+        popupBlocked = true;
+        console.log('⚠️ Popup appears to be blocked');
+      } else {
+        // Check if we can access the window (indicates it opened)
+        try {
+          // Try to access window properties (will throw if blocked)
+          const test = newWindow.location;
+          console.log('✅ Opened event page in new tab using window.open');
+          return true; // Success - new tab opened
+        } catch (e) {
+          // Cross-origin - can't check, but window exists so assume success
+          console.log('✅ Opened event page in new tab (cross-origin check)');
+          return true; // Success - new tab likely opened
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error with window.open:', error);
+      popupBlocked = true;
+    }
+    
+    // Method 2: If popup was blocked, try link element (sometimes works when window.open doesn't)
+    if (popupBlocked) {
+      try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        }, 100);
+        
+        console.log('✅ Used link element method to open event page');
+        // Assume success - can't reliably check
+        return true;
+      } catch (error) {
+        console.error('❌ Error with link element method:', error);
+      }
+    }
+    
+    // Method 3: Final fallback - redirect current window
+    // This ensures redirect ALWAYS happens
+    console.log('⚠️ Using final fallback: redirecting current window');
+    try {
+      window.location.href = url;
+      console.log('✅ Redirected current window to:', url);
+      return true;
+    } catch (error) {
+      console.error('❌ Error redirecting current window:', error);
+      alert('Unable to redirect automatically. Please click the "Go to Event Page" button or copy this URL: ' + url);
+      return false;
+    }
+  }, []); // Empty deps - function doesn't depend on any props or state
+
+  // Store redirect function in ref for setTimeout access
   useEffect(() => {
-    eventRef.current = event;
-  }, [event]);
+    performRedirectRef.current = performRedirect;
+  }, [performRedirect]);
 
   useEffect(() => {
-    if (!isOpen || !event) {
+    if (!isOpen || !event || !event.originalEventUrl) {
       setCountdown(5);
-      hasRedirectedRef.current = false;
+      // Clear any existing timers
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
+      }
       return;
     }
 
-    // Reset countdown and redirect flag when modal opens
+    // Capture redirect URL immediately and persist it
+    const redirectUrl = event.originalEventUrl;
+    redirectUrlRef.current = redirectUrl;
+    localStorage.setItem('pendingRedirectUrl', redirectUrl);
+    console.log('✅ Redirect URL captured and persisted:', redirectUrl);
+
+    // Reset countdown when modal opens
     setCountdown(5);
-    hasRedirectedRef.current = false;
 
-    let countdownInterval;
-    let redirectTimer;
-
-    // Countdown timer - decrement every second
-    countdownInterval = setInterval(() => {
+    // UI-only countdown timer (separate from redirect logic)
+    countdownIntervalRef.current = setInterval(() => {
       setCountdown((prev) => {
         const newCount = prev - 1;
-        
-        // When countdown reaches 0, trigger redirect
-        if (newCount <= 0 && !hasRedirectedRef.current) {
-          hasRedirectedRef.current = true;
-          clearInterval(countdownInterval);
-          
-          // Redirect immediately when countdown reaches 0
-          const currentEvent = eventRef.current;
-          if (onRedirect && currentEvent) {
-            console.log('⏰ Countdown reached 0, auto-redirecting to event:', currentEvent.title);
-            onRedirect(currentEvent); // Pass event to ensure correct redirect
-          }
-          
-          // Close modal after redirect
-          setTimeout(() => {
-            if (onClose) {
-              onClose();
-            }
-          }, 100);
-          
-          return 0;
-        }
-        
-        return newCount;
+        return newCount >= 0 ? newCount : 0;
       });
     }, 1000);
 
-    // Fallback: Auto-redirect after exactly 5 seconds (safety net)
-    redirectTimer = setTimeout(() => {
-      if (!hasRedirectedRef.current) {
-        hasRedirectedRef.current = true;
-        console.log('⏰ Fallback redirect triggered after 5 seconds');
-        clearInterval(countdownInterval);
-        
-        const currentEvent = eventRef.current;
-        if (onRedirect && currentEvent) {
-          console.log('🔄 Fallback redirecting to event:', currentEvent.title);
-          onRedirect(currentEvent); // Pass event to ensure correct redirect
-        }
-        
+    // Auto-redirect timer (independent of countdown state, depends ONLY on redirect URL)
+    // Capture URL directly in closure to ensure it's available
+    redirectTimerRef.current = setTimeout(() => {
+      console.log('⏰ Auto-redirect timer triggered after 5 seconds');
+      
+      // Get URL from multiple sources (most reliable)
+      const finalRedirectUrl = redirectUrlRef.current || 
+                               localStorage.getItem('pendingRedirectUrl') || 
+                               redirectUrl;
+      
+      console.log('🔗 Final redirect URL:', finalRedirectUrl);
+      console.log('🔗 redirectUrlRef.current:', redirectUrlRef.current);
+      console.log('🔗 localStorage:', localStorage.getItem('pendingRedirectUrl'));
+      console.log('🔗 redirectUrl (closure):', redirectUrl);
+      
+      if (!finalRedirectUrl) {
+        console.error('❌ No redirect URL available in timer callback');
+        alert('Error: Event URL not found. Please click "Go to Event Page" button.');
+        return;
+      }
+      
+      // Clear countdown interval
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      
+      // Perform redirect using the stored URL
+      console.log('🚀 Executing redirect to:', finalRedirectUrl);
+      const redirectFn = performRedirectRef.current || performRedirect;
+      const redirectResult = redirectFn(finalRedirectUrl);
+      
+      if (redirectResult) {
+        console.log('✅ Redirect executed successfully');
+      } else {
+        console.warn('⚠️ Redirect may have been blocked. User should click button manually.');
+      }
+      
+      // Clear stored URL
+      localStorage.removeItem('pendingRedirectUrl');
+      
+      // Close modal after redirect (with small delay to ensure redirect happens)
+      setTimeout(() => {
         if (onClose) {
           onClose();
         }
-      }
-    }, 5000);
+      }, 300);
+    }, 5000); // 5 seconds
 
     // Cleanup function
     return () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
+      console.log('🧹 Cleaning up timers');
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
       }
-      if (redirectTimer) {
-        clearTimeout(redirectTimer);
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
       }
     };
-  }, [isOpen, onClose, onRedirect, event]);
+  }, [isOpen, event, onClose]); // Removed performRedirect from deps - it's stable
 
   if (!isOpen) return null;
 
   const handleRedirectClick = (e) => {
-    // Prevent default link behavior if it's a link click
     if (e) {
       e.preventDefault();
     }
     
-    if (onRedirect && event) {
-      console.log('🖱️ Manual redirect button clicked for event:', event.title);
-      onRedirect(event); // Pass event to ensure correct redirect
+    // Clear auto-redirect timer since user is manually redirecting
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+    
+    // Get redirect URL from ref, localStorage, or event (in that order)
+    const redirectUrl = redirectUrlRef.current || 
+                       localStorage.getItem('pendingRedirectUrl') || 
+                       (event && event.originalEventUrl);
+    
+    if (redirectUrl) {
+      console.log('🖱️ Manual redirect button clicked. Redirecting to:', redirectUrl);
+      performRedirect(redirectUrl);
+      
+      // Clear stored URL
+      localStorage.removeItem('pendingRedirectUrl');
+    } else {
+      console.error('❌ No redirect URL available for manual redirect');
     }
     
     if (onClose) {
