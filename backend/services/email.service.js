@@ -8,7 +8,6 @@ const Event = require('../models/Event.model');
 const EventInterest = require('../models/EventInterest.model');
 const logger = require('../utils/logger');
 const { EMAIL_REGEX } = require('../utils/constants');
-const { sendConfirmationEmail } = require('./emailSender.service');
 
 class EmailService {
   /**
@@ -112,45 +111,9 @@ class EmailService {
 
       logger.info(`Email saved for event ${eventId}: ${normalizedEmail}`);
 
-      // Send confirmation email after saving to database
-      let emailSent = false;
-      let emailError = null;
-      
-      try {
-        const emailResult = await sendConfirmationEmail(normalizedEmail, event);
-        
-        if (emailResult.success) {
-          // Mark email as sent
-          eventInterest.emailSent = true;
-          await eventInterest.save();
-          emailSent = true;
-          
-          logger.info(`✅ Confirmation email sent to ${normalizedEmail} for event: ${event.title}`);
-          logger.info(`   Message ID: ${emailResult.messageId}`);
-        } else {
-          emailError = emailResult.error || emailResult.message;
-          
-          if (emailResult.configured === false) {
-            logger.warn(`⚠️  Email not configured. To enable email sending:`);
-            logger.warn(`   Add USER and APP_PASSWORD to backend/.env`);
-            logger.warn(`   Email: ${normalizedEmail}, Event: ${event.title}`);
-          } else {
-            logger.error(`❌ Failed to send confirmation email to ${normalizedEmail}:`);
-            logger.error(`   Error: ${emailError}`);
-          }
-        }
-      } catch (error) {
-        emailError = error.message;
-        logger.error(`❌ Error sending confirmation email to ${normalizedEmail}:`, error);
-        // Don't throw - email sending failure shouldn't break the user flow
-        // Email is still saved in database, just not sent
-      }
-
       return {
         success: true,
         alreadyExists: false,
-        emailSent: emailSent,
-        emailError: emailError || undefined,
         interest: {
           id: eventInterest._id,
           email: eventInterest.email,

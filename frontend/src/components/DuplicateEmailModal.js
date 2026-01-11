@@ -12,7 +12,7 @@ const DuplicateEmailModal = ({ isOpen, onClose, event, onRedirect }) => {
     if (onRedirect) {
       onRedirect();
     }
-    onClose();
+    // Don't close immediately - let redirect handle it
   };
 
   return (
@@ -89,18 +89,23 @@ const DuplicateEmailModal = ({ isOpen, onClose, event, onRedirect }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex space-x-3">
+        <div className="flex flex-col space-y-3">
+          {event && event.originalEventUrl && (
+            <a
+              href={event.originalEventUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleRedirectClick}
+              className="w-full btn btn-primary py-3 font-semibold text-center"
+            >
+              Continue to Booking →
+            </a>
+          )}
           <button
             onClick={onClose}
-            className="flex-1 btn btn-secondary py-3"
+            className="w-full btn btn-secondary py-3"
           >
             Cancel
-          </button>
-          <button
-            onClick={handleRedirectClick}
-            className="flex-1 btn btn-primary py-3 font-semibold"
-          >
-            Continue to Booking →
           </button>
         </div>
 

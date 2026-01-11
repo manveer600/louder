@@ -20,24 +20,30 @@ const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
     let countdownInterval;
     let redirectTimer;
 
-    // Countdown timer
+    // Countdown timer - decrement every second
     countdownInterval = setInterval(() => {
       setCountdown((prev) => {
-        const newCount = prev - 1;
-        if (newCount <= 0) {
-          // Redirect when countdown reaches 0
-          if (onRedirect) {
-            onRedirect();
-          }
-          onClose();
+        if (prev <= 1) {
+          // When countdown reaches 1, clear interval and redirect
+          clearInterval(countdownInterval);
+          // Small delay to ensure state update completes
+          setTimeout(() => {
+            if (onRedirect) {
+              console.log('Auto-redirecting after countdown...');
+              onRedirect();
+            }
+            onClose();
+          }, 100);
           return 0;
         }
-        return newCount;
+        return prev - 1;
       });
     }, 1000);
 
-    // Fallback: Auto-redirect after 5 seconds (in case countdown has issues)
+    // Fallback: Auto-redirect after exactly 5 seconds
     redirectTimer = setTimeout(() => {
+      console.log('Fallback redirect triggered after 5 seconds');
+      clearInterval(countdownInterval);
       if (onRedirect) {
         onRedirect();
       }
@@ -132,10 +138,10 @@ const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
               </svg>
               <div>
                 <p className="text-sm font-medium text-green-800 mb-1">
-                  Confirmation email sent!
+                  Email registered successfully!
                 </p>
                 <p className="text-sm text-green-700">
-                  We've sent a confirmation email to your inbox with event details and a direct link to purchase tickets.
+                  Your email has been saved. You'll be redirected to the event page to purchase tickets.
                 </p>
               </div>
             </div>
@@ -147,18 +153,23 @@ const SuccessModal = ({ isOpen, onClose, event, onRedirect }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex space-x-3">
+        <div className="flex flex-col space-y-3">
+          {event && event.originalEventUrl && (
+            <a
+              href={event.originalEventUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleRedirectClick}
+              className="w-full btn btn-primary py-3 font-semibold text-center"
+            >
+              Go to Event Page →
+            </a>
+          )}
           <button
             onClick={onClose}
-            className="flex-1 btn btn-secondary py-3"
+            className="w-full btn btn-secondary py-3"
           >
             Stay Here
-          </button>
-          <button
-            onClick={handleRedirectClick}
-            className="flex-1 btn btn-primary py-3 font-semibold"
-          >
-            Go to Event Page →
           </button>
         </div>
 

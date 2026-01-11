@@ -22,7 +22,10 @@ const EventListing = () => {
     category: '',
     dateFrom: '',
     dateTo: '',
-    upcomingOnly: true
+    upcomingOnly: true,
+    latitude: null,
+    longitude: null,
+    radius: null
   });
   const [pagination, setPagination] = useState({
     page: 1,
@@ -49,6 +52,11 @@ const EventListing = () => {
         ...(filters.category && { category: filters.category }),
         ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
         ...(filters.dateTo && { dateTo: filters.dateTo }),
+        ...(filters.latitude && filters.longitude && {
+          latitude: filters.latitude,
+          longitude: filters.longitude,
+          ...(filters.radius && { radius: filters.radius })
+        }),
         sortBy: 'date',
         sortOrder: 'asc'
       };
@@ -57,7 +65,14 @@ const EventListing = () => {
 
       if (response && response.success) {
         setEvents(response.data?.events || []);
-        setPagination(response.data?.pagination || pagination);
+        // Update pagination with response data, ensuring page is set correctly
+        const newPagination = response.data?.pagination || {
+          page: page,
+          limit: pagination.limit,
+          total: 0,
+          totalPages: 1
+        };
+        setPagination(newPagination);
         setError(null); // Clear any previous errors
       } else {
         setError(response?.message || 'Failed to fetch events');
@@ -123,6 +138,7 @@ const EventListing = () => {
 
   // Refetch when filters change
   useEffect(() => {
+    setPagination(prev => ({ ...prev, page: 1 }));
     fetchEvents(1);
   }, [filters]);
 
@@ -134,8 +150,21 @@ const EventListing = () => {
 
   // Handle page change
   const handlePageChange = (newPage) => {
-    fetchEvents(newPage);
+    // Validate page number
+    if (newPage < 1 || (pagination.totalPages > 0 && newPage > pagination.totalPages)) {
+      console.warn('Invalid page number:', newPage);
+      return;
+    }
+    
+    console.log('Changing page from', pagination.page, 'to', newPage);
+    
+    // Update pagination state first, then fetch
     setPagination(prev => ({ ...prev, page: newPage }));
+    
+    // Fetch events with new page
+    fetchEvents(newPage);
+    
+    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -148,11 +177,14 @@ const EventListing = () => {
       return;
     }
 
-    setSelectedEvent(event);
+    console.log('Selected event for tickets:', {
+      id: event._id,
+      title: event.title,
+      originalEventUrl: event.originalEventUrl,
+      fullEvent: event
+    });
 
-    // Check if user has already provided email for this event
-    // We'll check this when they open the modal, but for now show modal
-    // The modal will handle the duplicate check
+    setSelectedEvent(event);
     setShowEmailModal(true);
   };
 
@@ -178,38 +210,95 @@ const EventListing = () => {
 
   // Handle redirect to event page
   const handleRedirectToEvent = () => {
-    if (selectedEvent && selectedEvent.originalEventUrl) {
-      const eventUrl = selectedEvent.originalEventUrl;
-      console.log('Redirecting to event URL:', eventUrl);
-      
-      // Open in new tab (target="_blank")
+    console.log('🔄 handleRedirectToEvent called');
+    console.log('Selected event:', selectedEvent);
+    
+    if (!selectedEvent) {
+      console.error('❌ No selected event found');
+      alert('Error: Event information not found. Please try again.');
+      return;
+    }
+
+    const eventUrl = selectedEvent.originalEventUrl;
+    
+    console.log('📍 Event URL to redirect to:', eventUrl);
+    
+    if (!eventUrl || eventUrl.trim() === '') {
+      console.error('❌ No event URL found in selectedEvent:', selectedEvent);
+      alert('Error: Event URL not found. Please contact support.');
+      // Close modals even if URL is missing
+      setShowSuccessModal(false);
+      setShowDuplicateModal(false);
+      setSelectedEvent(null);
+      setEmailSubmitted(false);
+      return;
+    }
+
+    // Ensure URL is valid
+    if (!eventUrl.startsWith('http://') && !eventUrl.startsWith('https://')) {
+      console.error('❌ Invalid URL format:', eventUrl);
+      alert('Error: Invalid event URL format.');
+      return;
+    }
+
+    console.log('🚀 Opening event URL in new tab:', eventUrl);
+    
+    // Try multiple methods to ensure redirect works
+    let redirectSuccess = false;
+    
+    try {
+      // Method 1: window.open (preferred - opens in new tab)
       const newWindow = window.open(eventUrl, '_blank', 'noopener,noreferrer');
       
       // Check if popup was blocked
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        // Popup blocked - show message and allow manual click
-        alert('Please allow popups for this site, or click the button again to open the event page.');
-        // Fallback: create a link element and click it
+      if (newWindow && !newWindow.closed && typeof newWindow.closed !== 'undefined') {
+        console.log('✅ Opened event page in new tab using window.open');
+        redirectSuccess = true;
+      } else {
+        console.log('⚠️ Popup blocked, trying alternative method...');
+      }
+    } catch (error) {
+      console.error('❌ Error with window.open:', error);
+    }
+    
+    // Method 2: If window.open failed, use link element
+    if (!redirectSuccess) {
+      try {
         const link = document.createElement('a');
         link.href = eventUrl;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
-      } else {
-        console.log('✅ Opened event page in new tab');
+        
+        // Clean up after a short delay
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        }, 100);
+        
+        console.log('✅ Used link element method to open event page');
+        redirectSuccess = true;
+      } catch (error) {
+        console.error('❌ Error with link element method:', error);
       }
-    } else {
-      console.error('No event URL found:', selectedEvent);
-      alert('Error: Event URL not found. Please try again.');
     }
     
-    // Close modals after redirect
-    setShowSuccessModal(false);
-    setShowDuplicateModal(false);
-    setSelectedEvent(null);
-    setEmailSubmitted(false);
+    // Method 3: Final fallback - redirect current window
+    if (!redirectSuccess) {
+      console.log('⚠️ Using final fallback: redirecting current window');
+      window.location.href = eventUrl;
+    }
+    
+    // Close modals after redirect attempt (with small delay to ensure redirect happens)
+    setTimeout(() => {
+      setShowSuccessModal(false);
+      setShowDuplicateModal(false);
+      setSelectedEvent(null);
+      setEmailSubmitted(false);
+    }, 300);
   };
 
   // Handle success modal close
@@ -285,21 +374,29 @@ const EventListing = () => {
               {pagination.totalPages > 1 && (
                 <div className="flex justify-center items-center space-x-2 mt-8">
                   <button
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      const prevPage = pagination.page - 1;
+                      console.log('Previous button clicked, going to page:', prevPage);
+                      handlePageChange(prevPage);
+                    }}
+                    disabled={pagination.page <= 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors font-medium"
                   >
-                    Previous
+                    ← Previous
                   </button>
-                  <span className="px-4 py-2 text-gray-700">
+                  <span className="px-4 py-2 text-gray-700 font-medium">
                     Page {pagination.page} of {pagination.totalPages}
                   </span>
                   <button
-                    onClick={() => handlePageChange(pagination.page + 1)}
+                    onClick={() => {
+                      const nextPage = pagination.page + 1;
+                      console.log('Next button clicked, going to page:', nextPage);
+                      handlePageChange(nextPage);
+                    }}
                     disabled={pagination.page >= pagination.totalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors font-medium"
                   >
-                    Next
+                    Next →
                   </button>
                 </div>
               )}

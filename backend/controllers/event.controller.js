@@ -6,6 +6,8 @@
 const Event = require('../models/Event.model');
 const scrapingOrchestrator = require('../services/scraping/orchestrator.service');
 const logger = require('../utils/logger');
+const { calculateDistance, getSydneyCenter } = require('../utils/distance');
+const { CATEGORIES } = require('../utils/constants');
 const { MESSAGES, CATEGORIES } = require('../utils/constants');
 
 class EventController {
@@ -23,7 +25,10 @@ class EventController {
         page = 1,
         limit = 20,
         sortBy = 'date',
-        sortOrder = 'asc'
+        sortOrder = 'asc',
+        latitude,
+        longitude,
+        radius = 50 // Default radius in kilometers
       } = req.query;
 
       // Build query
@@ -65,14 +70,54 @@ class EventController {
       const limitNum = parseInt(limit);
 
       // Execute query
-      const [events, total] = await Promise.all([
-        Event.find(query)
-          .sort(sort)
-          .skip(skip)
-          .limit(limitNum)
-          .lean(),
-        Event.countDocuments(query)
-      ]);
+      let events, total;
+      
+      if (latitude && longitude) {
+        // Location-based query (Events Near Me)
+        // Calculate distance from user location to Sydney center
+        const sydneyCenter = getSydneyCenter();
+        const userLat = parseFloat(latitude);
+        const userLon = parseFloat(longitude);
+        const maxRadius = parseFloat(radius) || 50;
+        
+        const distanceToSydney = calculateDistance(
+          userLat,
+          userLon,
+          sydneyCenter.latitude,
+          sydneyCenter.longitude
+        );
+        
+        logger.info(`Location-based query: user at (${userLat}, ${userLon}), distance to Sydney: ${distanceToSydney.toFixed(2)}km, max radius: ${maxRadius}km`);
+        
+        // If user is too far from Sydney, return no events
+        if (distanceToSydney > maxRadius) {
+          logger.info(`User is ${distanceToSydney.toFixed(2)}km away from Sydney, which exceeds the ${maxRadius}km radius. Returning no events.`);
+          events = [];
+          total = 0;
+        } else {
+          // User is within radius, return Sydney events
+          [events, total] = await Promise.all([
+            Event.find(query)
+              .sort(sort)
+              .skip(skip)
+              .limit(limitNum)
+              .lean(),
+            Event.countDocuments(query)
+          ]);
+          
+          logger.info(`User is within ${maxRadius}km radius. Returning ${events.length} events.`);
+        }
+      } else {
+        // Regular query
+        [events, total] = await Promise.all([
+          Event.find(query)
+            .sort(sort)
+            .skip(skip)
+            .limit(limitNum)
+            .lean(),
+          Event.countDocuments(query)
+        ]);
+      }
 
       logger.info(`Fetched ${events.length} events (page ${page}, total: ${total})`);
 
@@ -155,8 +200,15 @@ class EventController {
   async getCategories(req, res, next) {
     try {
       // Get categories with event counts from database
+      // Only count UPCOMING events (matching the default filter)
+      const now = new Date();
       const categoriesWithCounts = await Event.aggregate([
-        { $match: { city: 'Sydney' } },
+        { 
+          $match: { 
+            city: 'Sydney',
+            date: { $gte: now } // Only count upcoming events
+          } 
+        },
         {
           $group: {
             _id: '$category',
