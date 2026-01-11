@@ -29,10 +29,13 @@ function getTransporter() {
     return transporter;
   }
 
-  // In development, use Ethereal Email (fake SMTP) if no credentials provided
-  if (NODE_ENV === 'development' && (!emailConfig.auth.user || !emailConfig.auth.pass)) {
-    logger.warn('No SMTP credentials found. Email sending will be disabled in development mode.');
-    logger.warn('To enable email sending, configure SMTP_USER and SMTP_PASS in .env');
+  // Check if SMTP credentials are provided
+  if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+    if (NODE_ENV === 'development') {
+      logger.warn('⚠️  No SMTP credentials found. Email sending is disabled.');
+      logger.warn('📧 To enable email sending, add SMTP credentials to backend/.env');
+      logger.warn('   See EMAIL_SETUP.md for instructions');
+    }
     return null;
   }
 
@@ -62,11 +65,21 @@ async function sendEmail({ to, subject, html, text }) {
   const mailTransporter = getTransporter();
   
   if (!mailTransporter) {
-    logger.warn(`Email sending disabled. Would send to ${to}: ${subject}`);
-    return { success: false, message: 'Email service not configured' };
+    const errorMsg = 'Email service not configured. Add SMTP credentials to backend/.env (see EMAIL_SETUP.md)';
+    logger.warn(`⚠️  ${errorMsg}`);
+    logger.warn(`Would send to ${to}: ${subject}`);
+    return { 
+      success: false, 
+      message: errorMsg,
+      configured: false
+    };
   }
 
   try {
+    // Verify SMTP connection first
+    await mailTransporter.verify();
+    logger.info('SMTP connection verified');
+
     const mailOptions = {
       from: `"${emailConfig.fromName}" <${emailConfig.auth.user}>`,
       to: to,
@@ -75,18 +88,30 @@ async function sendEmail({ to, subject, html, text }) {
       text: text || html.replace(/<[^>]*>/g, '') // Strip HTML for text version
     };
 
+    logger.info(`Sending email to ${to}...`);
     const info = await mailTransporter.sendMail(mailOptions);
-    logger.info(`Email sent successfully to ${to}: ${info.messageId}`);
+    logger.info(`✅ Email sent successfully to ${to}: ${info.messageId}`);
     
     return {
       success: true,
       messageId: info.messageId
     };
   } catch (error) {
-    logger.error(`Failed to send email to ${to}:`, error);
+    logger.error(`❌ Failed to send email to ${to}:`, error);
+    logger.error(`Error details: ${error.message}`);
+    
+    // Provide helpful error messages
+    let errorMessage = error.message;
+    if (error.code === 'EAUTH') {
+      errorMessage = 'SMTP authentication failed. Check your SMTP_USER and SMTP_PASS in .env';
+    } else if (error.code === 'ECONNECTION') {
+      errorMessage = 'Cannot connect to SMTP server. Check SMTP_HOST and SMTP_PORT';
+    }
+    
     return {
       success: false,
-      error: error.message
+      error: errorMessage,
+      code: error.code
     };
   }
 }

@@ -8,6 +8,7 @@ import { eventAPI } from '../services/api';
 import EventCard from './EventCard';
 import FilterBar from './FilterBar';
 import EmailModal from './EmailModal';
+import SuccessModal from './SuccessModal';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 
@@ -30,6 +31,8 @@ const EventListing = () => {
   });
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [emailSubmitted, setEmailSubmitted] = useState(false);
 
   // Fetch events
   const fetchEvents = useCallback(async (page = 1) => {
@@ -155,17 +158,53 @@ const EventListing = () => {
 
   // Handle email submission success
   const handleEmailSubmitted = () => {
-    // Show success message
-    alert(`✅ Thank you for your interest!\n\nA confirmation email has been sent to your email address.\n\nYou're now being redirected to the event page to purchase tickets.`);
-    
-    // Redirect to the actual event URL on Eventbrite/Meetup
+    setEmailSubmitted(true);
+    setShowEmailModal(false);
+    setShowSuccessModal(true);
+  };
+
+  // Handle redirect to event page
+  const handleRedirectToEvent = () => {
     if (selectedEvent && selectedEvent.originalEventUrl) {
-      // Open the event URL in a new tab
-      // Note: For sample events, this points to category pages (valid Eventbrite pages)
-      // In production with real scraping, these will be actual event detail pages
-      window.open(selectedEvent.originalEventUrl, '_blank');
+      const eventUrl = selectedEvent.originalEventUrl;
+      console.log('Redirecting to event URL:', eventUrl);
+      
+      // Try to open in new tab first (preferred)
+      try {
+        const newWindow = window.open(eventUrl, '_blank', 'noopener,noreferrer');
+        
+        // Check if popup was blocked
+        setTimeout(() => {
+          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            // Popup blocked or failed - redirect current window
+            console.log('Popup blocked, redirecting current window instead');
+            window.location.href = eventUrl;
+          } else {
+            // Successfully opened new window
+            console.log('Opened event page in new tab');
+          }
+        }, 100);
+      } catch (error) {
+        // Fallback: redirect current window
+        console.error('Error opening new window, redirecting current window:', error);
+        window.location.href = eventUrl;
+      }
+    } else {
+      console.error('No event URL found:', selectedEvent);
+      alert('Error: Event URL not found. Please try again.');
     }
-    handleEmailModalClose();
+    
+    // Close modal after redirect attempt
+    setShowSuccessModal(false);
+    setSelectedEvent(null);
+    setEmailSubmitted(false);
+  };
+
+  // Handle success modal close
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setSelectedEvent(null);
+    setEmailSubmitted(false);
   };
 
   return (
@@ -262,6 +301,16 @@ const EventListing = () => {
           event={selectedEvent}
           onClose={handleEmailModalClose}
           onSuccess={handleEmailSubmitted}
+        />
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && selectedEvent && (
+        <SuccessModal
+          isOpen={showSuccessModal}
+          event={selectedEvent}
+          onClose={handleSuccessModalClose}
+          onRedirect={handleRedirectToEvent}
         />
       )}
     </div>

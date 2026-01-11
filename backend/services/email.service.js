@@ -54,13 +54,23 @@ class EmailService {
       sendConfirmationEmail(email, event)
         .then(result => {
           if (result.success) {
-            logger.info(`Confirmation email sent to ${email} for event: ${event.title}`);
+            logger.info(`✅ Confirmation email sent to ${email} for event: ${event.title}`);
+            logger.info(`   Message ID: ${result.messageId}`);
           } else {
-            logger.warn(`Failed to send confirmation email to ${email}: ${result.error || result.message}`);
+            if (result.configured === false) {
+              logger.warn(`⚠️  Email not configured. To enable email sending:`);
+              logger.warn(`   1. Add SMTP credentials to backend/.env`);
+              logger.warn(`   2. See EMAIL_SETUP.md for instructions`);
+              logger.warn(`   Email: ${email}, Event: ${event.title}`);
+            } else {
+              logger.error(`❌ Failed to send confirmation email to ${email}:`);
+              logger.error(`   Error: ${result.error || result.message}`);
+              logger.error(`   Code: ${result.code || 'Unknown'}`);
+            }
           }
         })
         .catch(error => {
-          logger.error(`Error sending confirmation email to ${email}:`, error);
+          logger.error(`❌ Error sending confirmation email to ${email}:`, error);
           // Don't throw - email sending failure shouldn't break the user flow
         });
 
