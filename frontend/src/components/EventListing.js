@@ -93,55 +93,22 @@ const EventListing = () => {
     }
   }, [filters, pagination.limit]);
 
-  // Fetch categories
-  const fetchCategories = useCallback(async () => {
-    try {
-      console.log('Fetching categories...');
-      const response = await eventAPI.getCategories();
-      console.log('Categories response:', response);
-      
-      if (response && response.success && response.data) {
-        const cats = response.data.categories || [];
-        console.log('Setting categories:', cats);
-        setCategories(cats);
-        
-        // If still empty after API call, use fallback
-        if (cats.length === 0) {
-          console.log('No categories in response, using fallback');
-          const defaultCategories = [
-            'Music', 'Sports', 'Comedy', 'Theater', 'Arts', 
-            'Technology', 'Food & Drink', 'Business', 'Education', 
-            'Health & Wellness', 'Family', 'Other'
-          ].map(name => ({ name, count: 0 }));
-          setCategories(defaultCategories);
-        }
-      } else {
-        console.log('Invalid response format, using fallback');
-        // Fallback: use default categories if API fails
-        const defaultCategories = [
-          'Music', 'Sports', 'Comedy', 'Theater', 'Arts', 
-          'Technology', 'Food & Drink', 'Business', 'Education', 
-          'Health & Wellness', 'Family', 'Other'
-        ].map(name => ({ name, count: 0 }));
-        setCategories(defaultCategories);
-      }
-    } catch (err) {
-      console.error('Fetch categories error:', err);
-      // Fallback: use default categories on error
-      const defaultCategories = [
-        'Music', 'Sports', 'Comedy', 'Theater', 'Arts', 
-        'Technology', 'Food & Drink', 'Business', 'Education', 
-        'Health & Wellness', 'Family', 'Other'
-      ].map(name => ({ name, count: 0 }));
-      setCategories(defaultCategories);
-    }
+  // Initialize categories with default structure (counts will come from events API)
+  const initializeCategories = useCallback(() => {
+    const defaultCategories = [
+      'Music', 'Sports', 'Comedy', 'Theater', 'Arts', 
+      'Technology', 'Food & Drink', 'Business', 'Education', 
+      'Health & Wellness', 'Family', 'Other'
+    ].map(name => ({ name, count: 0 }));
+    setCategories(defaultCategories);
   }, []);
 
   // Initial load
   useEffect(() => {
     initializeCategories(); // Initialize with default structure
     fetchEvents(1); // Category counts will come from this response
-  }, [initializeCategories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Refetch when filters change
   useEffect(() => {
