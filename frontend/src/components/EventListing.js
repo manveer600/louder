@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { eventAPI } from '../services/api';
+import { eventAPI, userAPI } from '../services/api';
 import EventCard from './EventCard';
 import FilterBar from './FilterBar';
 import EmailModal from './EmailModal';
 import SuccessModal from './SuccessModal';
+import DuplicateEmailModal from './DuplicateEmailModal';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorMessage from './ErrorMessage';
 
@@ -32,6 +33,7 @@ const EventListing = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [emailSubmitted, setEmailSubmitted] = useState(false);
 
   // Fetch events
@@ -138,15 +140,19 @@ const EventListing = () => {
   };
 
   // Handle "GET TICKETS" click
-  const handleGetTickets = (event) => {
+  const handleGetTickets = async (event) => {
     // Validate event object has required fields
     if (!event || !event._id) {
       console.error('Invalid event object:', event);
       setError('Invalid event data. Please refresh the page and try again.');
       return;
     }
-    console.log('Opening email modal for event:', event._id, event.title);
+
     setSelectedEvent(event);
+
+    // Check if user has already provided email for this event
+    // We'll check this when they open the modal, but for now show modal
+    // The modal will handle the duplicate check
     setShowEmailModal(true);
   };
 
@@ -157,10 +163,17 @@ const EventListing = () => {
   };
 
   // Handle email submission success
-  const handleEmailSubmitted = () => {
-    setEmailSubmitted(true);
+  const handleEmailSubmitted = (alreadyExists = false) => {
     setShowEmailModal(false);
-    setShowSuccessModal(true);
+    
+    if (alreadyExists) {
+      // Email already exists - show duplicate modal
+      setShowDuplicateModal(true);
+    } else {
+      // New email - show success modal
+      setEmailSubmitted(true);
+      setShowSuccessModal(true);
+    }
   };
 
   // Handle redirect to event page
@@ -169,33 +182,32 @@ const EventListing = () => {
       const eventUrl = selectedEvent.originalEventUrl;
       console.log('Redirecting to event URL:', eventUrl);
       
-      // Try to open in new tab first (preferred)
-      try {
-        const newWindow = window.open(eventUrl, '_blank', 'noopener,noreferrer');
-        
-        // Check if popup was blocked
-        setTimeout(() => {
-          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            // Popup blocked or failed - redirect current window
-            console.log('Popup blocked, redirecting current window instead');
-            window.location.href = eventUrl;
-          } else {
-            // Successfully opened new window
-            console.log('Opened event page in new tab');
-          }
-        }, 100);
-      } catch (error) {
-        // Fallback: redirect current window
-        console.error('Error opening new window, redirecting current window:', error);
-        window.location.href = eventUrl;
+      // Open in new tab (target="_blank")
+      const newWindow = window.open(eventUrl, '_blank', 'noopener,noreferrer');
+      
+      // Check if popup was blocked
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        // Popup blocked - show message and allow manual click
+        alert('Please allow popups for this site, or click the button again to open the event page.');
+        // Fallback: create a link element and click it
+        const link = document.createElement('a');
+        link.href = eventUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        console.log('✅ Opened event page in new tab');
       }
     } else {
       console.error('No event URL found:', selectedEvent);
       alert('Error: Event URL not found. Please try again.');
     }
     
-    // Close modal after redirect attempt
+    // Close modals after redirect
     setShowSuccessModal(false);
+    setShowDuplicateModal(false);
     setSelectedEvent(null);
     setEmailSubmitted(false);
   };
@@ -205,6 +217,12 @@ const EventListing = () => {
     setShowSuccessModal(false);
     setSelectedEvent(null);
     setEmailSubmitted(false);
+  };
+
+  // Handle duplicate modal close
+  const handleDuplicateModalClose = () => {
+    setShowDuplicateModal(false);
+    setSelectedEvent(null);
   };
 
   return (
@@ -310,6 +328,16 @@ const EventListing = () => {
           isOpen={showSuccessModal}
           event={selectedEvent}
           onClose={handleSuccessModalClose}
+          onRedirect={handleRedirectToEvent}
+        />
+      )}
+
+      {/* Duplicate Email Modal */}
+      {showDuplicateModal && selectedEvent && (
+        <DuplicateEmailModal
+          isOpen={showDuplicateModal}
+          event={selectedEvent}
+          onClose={handleDuplicateModalClose}
           onRedirect={handleRedirectToEvent}
         />
       )}

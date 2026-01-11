@@ -19,16 +19,10 @@ API_VERSION=v1
 SCRAPING_INTERVAL_HOURS=6
 LOG_LEVEL=info
 
-# Email Configuration (for sending confirmation emails)
-# For Gmail: Use an App Password (not your regular password)
+# Gmail Configuration (for sending confirmation emails)
 # Get App Password: https://myaccount.google.com/apppasswords
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password-here
-EMAIL_FROM=noreply@louder.com
-EMAIL_FROM_NAME=Louder
+USER=singhmanveer645@gmail.com
+APP_PASSWORD=wcqdsknnrhimbaez
 
 # ⚠️ SECURITY WARNING: Replace all placeholders with your actual credentials
 # Never commit this file to version control

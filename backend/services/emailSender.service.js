@@ -3,57 +3,46 @@
  * Handles sending transactional emails using nodemailer
  */
 
+require('dotenv').config();
 const nodemailer = require('nodemailer');
-const { NODE_ENV, SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, EMAIL_FROM, EMAIL_FROM_NAME } = require('../config/env');
 const logger = require('../utils/logger');
 
-// Email configuration from environment variables
-const emailConfig = {
-  host: SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(SMTP_PORT) || 587,
-  secure: SMTP_SECURE || false, // true for 465, false for other ports
-  auth: {
-    user: SMTP_USER || '',
-    pass: SMTP_PASS || ''
-  },
-  from: EMAIL_FROM || 'Louder <noreply@louder.com>',
-  fromName: EMAIL_FROM_NAME || 'Louder'
-};
+// Gmail SMTP Configuration
+const GMAIL_USER = process.env.USER || '';
+const GMAIL_APP_PASSWORD = process.env.APP_PASSWORD || '';
 
 // Create transporter
 let transporter = null;
 
-// Initialize email transporter
+// Initialize email transporter with Gmail (using provided configuration)
 function getTransporter() {
   if (transporter) {
     return transporter;
   }
 
-  // Check if SMTP credentials are provided
-  if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-    if (NODE_ENV === 'development') {
-      logger.warn('⚠️  No SMTP credentials found. Email sending is disabled.');
-      logger.warn('📧 To enable email sending, add SMTP credentials to backend/.env');
-      logger.warn('   See EMAIL_SETUP.md for instructions');
-    }
+  // Check if Gmail credentials are provided
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+    logger.warn('⚠️  Gmail credentials not found. Email sending is disabled.');
+    logger.warn('📧 Add USER and APP_PASSWORD to backend/.env to enable email sending');
     return null;
   }
 
   try {
     transporter = nodemailer.createTransport({
-      host: emailConfig.host,
-      port: emailConfig.port,
-      secure: emailConfig.secure,
-      auth: emailConfig.auth.user ? {
-        user: emailConfig.auth.user,
-        pass: emailConfig.auth.pass
-      } : undefined
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465, // or 587
+      secure: true,
+      auth: {
+        user: GMAIL_USER,
+        pass: GMAIL_APP_PASSWORD
+      }
     });
 
-    logger.info('Email transporter initialized');
+    logger.info('✅ Gmail transporter initialized');
     return transporter;
   } catch (error) {
-    logger.error('Failed to initialize email transporter:', error);
+    logger.error('❌ Failed to initialize Gmail transporter:', error);
     return null;
   }
 }
@@ -65,7 +54,7 @@ async function sendEmail({ to, subject, html, text }) {
   const mailTransporter = getTransporter();
   
   if (!mailTransporter) {
-    const errorMsg = 'Email service not configured. Add SMTP credentials to backend/.env (see EMAIL_SETUP.md)';
+    const errorMsg = 'Email service not configured. Add USER and APP_PASSWORD to backend/.env';
     logger.warn(`⚠️  ${errorMsg}`);
     logger.warn(`Would send to ${to}: ${subject}`);
     return { 
@@ -76,22 +65,21 @@ async function sendEmail({ to, subject, html, text }) {
   }
 
   try {
-    // Verify SMTP connection first
-    await mailTransporter.verify();
-    logger.info('SMTP connection verified');
-
     const mailOptions = {
-      from: `"${emailConfig.fromName}" <${emailConfig.auth.user}>`,
+      from: {
+        name: 'Louder',
+        address: GMAIL_USER
+      },
       to: to,
       subject: subject,
-      html: html,
-      text: text || html.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      text: text || html.replace(/<[^>]*>/g, ''), // Plain text version
+      html: html
     };
 
-    logger.info(`Sending email to ${to}...`);
+    logger.info(`📧 Sending email to ${to}...`);
     const info = await mailTransporter.sendMail(mailOptions);
     logger.info(`✅ Email sent successfully to ${to}: ${info.messageId}`);
-    
+
     return {
       success: true,
       messageId: info.messageId
@@ -99,15 +87,14 @@ async function sendEmail({ to, subject, html, text }) {
   } catch (error) {
     logger.error(`❌ Failed to send email to ${to}:`, error);
     logger.error(`Error details: ${error.message}`);
-    
-    // Provide helpful error messages
+
     let errorMessage = error.message;
     if (error.code === 'EAUTH') {
-      errorMessage = 'SMTP authentication failed. Check your SMTP_USER and SMTP_PASS in .env';
+      errorMessage = 'Gmail authentication failed. Check your USER and APP_PASSWORD in .env';
     } else if (error.code === 'ECONNECTION') {
-      errorMessage = 'Cannot connect to SMTP server. Check SMTP_HOST and SMTP_PORT';
+      errorMessage = 'Cannot connect to Gmail SMTP server. Check your internet connection.';
     }
-    
+
     return {
       success: false,
       error: errorMessage,

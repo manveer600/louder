@@ -3,19 +3,49 @@
  * Modal for capturing email and consent for GET TICKETS flow
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
 
 const EmailModal = ({ event, onClose, onSuccess }) => {
   const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState(null);
+  const [alreadyExists, setAlreadyExists] = useState(false);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
+
+  // Check if email already exists when user types
+  useEffect(() => {
+    const checkEmailExists = async () => {
+      if (!email.trim() || !validateEmail(email) || !event?._id) {
+        setAlreadyExists(false);
+        return;
+      }
+
+      setChecking(true);
+      try {
+        const response = await userAPI.checkEmail(email.trim(), event._id);
+        if (response && response.data && response.data.exists) {
+          setAlreadyExists(true);
+        } else {
+          setAlreadyExists(false);
+        }
+      } catch (err) {
+        setAlreadyExists(false);
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    // Debounce check
+    const timer = setTimeout(checkEmailExists, 500);
+    return () => clearTimeout(timer);
+  }, [email, event]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,8 +88,14 @@ const EmailModal = ({ event, onClose, onSuccess }) => {
       console.log('Email API response:', response);
 
       if (response && response.success) {
-        // Success - redirect will happen in parent component
-        onSuccess();
+        // Check if email already existed
+        if (response.alreadyExists) {
+          // Email already exists - call onSuccess with true flag
+          onSuccess(true);
+        } else {
+          // New email - show success and redirect
+          onSuccess(false);
+        }
       } else {
         const errorMessage = response?.message || 'Failed to save email. Please try again.';
         console.error('Email save failed:', errorMessage);

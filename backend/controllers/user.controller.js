@@ -10,6 +10,44 @@ const { MESSAGES, EMAIL_REGEX } = require('../utils/constants');
 
 class UserController {
   /**
+   * Check if email already exists for event
+   */
+  async checkEmail(req, res, next) {
+    try {
+      const { email, eventId } = req.query;
+
+      if (!email || !EMAIL_REGEX.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: MESSAGES.INVALID_EMAIL
+        });
+      }
+
+      if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid Event ID'
+        });
+      }
+
+      const checkResult = await emailService.checkEmailExists(email, eventId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          exists: checkResult.exists,
+          event: checkResult.exists ? {
+            originalEventUrl: checkResult.interest.originalEventUrl
+          } : null
+        }
+      });
+    } catch (error) {
+      logger.error('Check email error:', error);
+      next(error);
+    }
+  }
+
+  /**
    * Save email for event ticket request
    */
   async saveEmail(req, res, next) {
@@ -64,13 +102,26 @@ class UserController {
         }
       });
 
+      if (result.alreadyExists) {
+        logger.info(`Email already exists: ${email} for event ${eventId}`);
+        return res.status(200).json({
+          success: true,
+          message: 'Email already registered for this event',
+          alreadyExists: true,
+          data: {
+            event: result.event
+          }
+        });
+      }
+
       logger.info(`Email saved: ${email} for event ${eventId}`);
 
       res.status(201).json({
         success: true,
         message: MESSAGES.EMAIL_SAVED,
+        alreadyExists: false,
         data: {
-          user: result.user,
+          interest: result.interest,
           event: result.event
         }
       });

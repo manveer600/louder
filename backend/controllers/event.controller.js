@@ -213,25 +213,31 @@ class EventController {
 
   /**
    * Trigger manual scraping (admin endpoint)
+   * NOTE: GET APIs should NEVER trigger scraping - only this POST endpoint does
    */
   async triggerScraping(req, res, next) {
     try {
       logger.info('Manual scraping triggered via API');
 
-      // Run scraping asynchronously
+      // Run scraping asynchronously (non-blocking)
       scrapingOrchestrator.scrapeAllSources()
         .then((result) => {
-          logger.info('Manual scraping completed:', result);
+          logger.info('✅ Manual scraping completed:', {
+            totalScraped: result.totalScraped,
+            totalSaved: result.totalSaved,
+            totalUpdated: result.totalUpdated
+          });
         })
         .catch((error) => {
-          logger.error('Manual scraping failed:', error);
+          logger.error('❌ Manual scraping failed:', error);
         });
 
       res.status(202).json({
         success: true,
-        message: 'Scraping job started',
+        message: 'Scraping job started in background',
         data: {
-          status: 'processing'
+          status: 'processing',
+          note: 'Scraping runs asynchronously. Check logs for progress.'
         }
       });
     } catch (error) {

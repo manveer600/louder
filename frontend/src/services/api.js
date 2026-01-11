@@ -116,6 +116,21 @@ export const eventAPI = {
  */
 export const userAPI = {
   /**
+   * Check if email already exists for event
+   */
+  checkEmail: async (email, eventId) => {
+    try {
+      const response = await api.get('/users/check-email', {
+        params: { email, eventId }
+      });
+      return response;
+    } catch (error) {
+      console.error('Check email API error:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Save email for event ticket request
    */
   saveEmail: async (data) => {

@@ -5,11 +5,34 @@
 
 const User = require('../models/User.model');
 const Event = require('../models/Event.model');
+const EventInterest = require('../models/EventInterest.model');
 const logger = require('../utils/logger');
 const { EMAIL_REGEX } = require('../utils/constants');
 const { sendConfirmationEmail } = require('./emailSender.service');
 
 class EmailService {
+  /**
+   * Check if email already exists for this event
+   */
+  async checkEmailExists(email, eventId) {
+    try {
+      const interest = await EventInterest.findOne({
+        email: email.toLowerCase().trim(),
+        eventId: eventId
+      });
+
+      return interest ? {
+        exists: true,
+        interest: interest
+      } : {
+        exists: false
+      };
+    } catch (error) {
+      logger.error('Error checking email existence:', error);
+      return { exists: false };
+    }
+  }
+
   /**
    * Save email with consent for event ticket request
    */
@@ -33,9 +56,48 @@ class EmailService {
         throw new Error('Event not found');
       }
 
-      // Create user record (allow multiple entries for same email + event for analytics)
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if email already exists for this event
+      const existingInterest = await EventInterest.findOne({
+        email: normalizedEmail,
+        eventId: eventId
+      });
+
+      if (existingInterest) {
+        logger.info(`Email ${normalizedEmail} already registered for event ${eventId}`);
+        return {
+          success: true,
+          alreadyExists: true,
+          event: {
+            id: event._id,
+            title: event.title,
+            originalEventUrl: event.originalEventUrl
+          }
+        };
+      }
+
+      // Create EventInterest record (prevents duplicates)
+      const eventInterest = new EventInterest({
+        email: normalizedEmail,
+        eventId: event._id,
+        sourceWebsite: event.sourceWebsite,
+        originalEventUrl: event.originalEventUrl,
+        consentGiven: consentGiven,
+        emailSent: false,
+        metadata: {
+          ipAddress: ipAddress || '',
+          userAgent: userAgent || '',
+          source: source,
+          ...metadata
+        }
+      });
+
+      await eventInterest.save();
+
+      // Also save to User collection for analytics (allow duplicates here for tracking)
       const user = new User({
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         eventId: event._id,
         eventTitle: event.title,
         eventUrl: event.originalEventUrl,
@@ -48,39 +110,41 @@ class EmailService {
 
       await user.save();
 
-      logger.info(`Email saved for event ${eventId}: ${email}`);
+      logger.info(`Email saved for event ${eventId}: ${normalizedEmail}`);
 
       // Send confirmation email (fire and forget - don't block response)
-      sendConfirmationEmail(email, event)
+      sendConfirmationEmail(normalizedEmail, event)
         .then(result => {
           if (result.success) {
-            logger.info(`✅ Confirmation email sent to ${email} for event: ${event.title}`);
+            // Mark email as sent
+            eventInterest.emailSent = true;
+            eventInterest.save().catch(err => logger.error('Error updating emailSent flag:', err));
+            
+            logger.info(`✅ Confirmation email sent to ${normalizedEmail} for event: ${event.title}`);
             logger.info(`   Message ID: ${result.messageId}`);
           } else {
             if (result.configured === false) {
               logger.warn(`⚠️  Email not configured. To enable email sending:`);
-              logger.warn(`   1. Add SMTP credentials to backend/.env`);
-              logger.warn(`   2. See EMAIL_SETUP.md for instructions`);
-              logger.warn(`   Email: ${email}, Event: ${event.title}`);
+              logger.warn(`   Add USER and APP_PASSWORD to backend/.env`);
+              logger.warn(`   Email: ${normalizedEmail}, Event: ${event.title}`);
             } else {
-              logger.error(`❌ Failed to send confirmation email to ${email}:`);
+              logger.error(`❌ Failed to send confirmation email to ${normalizedEmail}:`);
               logger.error(`   Error: ${result.error || result.message}`);
-              logger.error(`   Code: ${result.code || 'Unknown'}`);
             }
           }
         })
         .catch(error => {
-          logger.error(`❌ Error sending confirmation email to ${email}:`, error);
+          logger.error(`❌ Error sending confirmation email to ${normalizedEmail}:`, error);
           // Don't throw - email sending failure shouldn't break the user flow
         });
 
       return {
         success: true,
-        user: {
-          id: user._id,
-          email: user.email,
-          eventId: user.eventId,
-          consentGiven: user.consentGiven
+        alreadyExists: false,
+        interest: {
+          id: eventInterest._id,
+          email: eventInterest.email,
+          eventId: eventInterest.eventId
         },
         event: {
           id: event._id,
@@ -90,6 +154,20 @@ class EmailService {
       };
     } catch (error) {
       logger.error('Email service error:', error);
+      
+      // Handle duplicate key error (shouldn't happen with our check, but just in case)
+      if (error.code === 11000) {
+        logger.warn('Duplicate email detected (race condition)');
+        return {
+          success: true,
+          alreadyExists: true,
+          event: {
+            id: eventId,
+            originalEventUrl: data.originalEventUrl || ''
+          }
+        };
+      }
+      
       throw error;
     }
   }

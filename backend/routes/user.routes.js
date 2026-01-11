@@ -8,6 +8,13 @@ const router = express.Router();
 const userController = require('../controllers/user.controller');
 
 /**
+ * @route   GET /api/v1/users/check-email
+ * @desc    Check if email already exists for event
+ * @access  Public
+ */
+router.get('/check-email', userController.checkEmail.bind(userController));
+
+/**
  * @route   POST /api/v1/users/email
  * @desc    Save email for event ticket request
  * @access  Public
