@@ -114,17 +114,28 @@ class EventbriteService extends GenericScraperService {
    */
   parseEventElement($, $element) {
     try {
-      // Extract event URL
-      const eventUrl = this.extractAttr($, $element, 'href') || 
+      // Extract event URL - prioritize links with /e/ (specific event pages)
+      let eventUrl = this.extractAttr($, $element.find('a[href*="/e/"]').first(), 'href') ||
+                      $element.find('a[href*="/e/"]').first().attr('href') ||
+                      this.extractAttr($, $element, 'href') || 
                       $element.find('a').first().attr('href') || '';
       
-      if (!eventUrl || !eventUrl.includes('/events/')) {
+      // Ensure it's a specific event page (contains /e/ for Eventbrite event pages)
+      // Not a category page (which would be /d/...)
+      if (!eventUrl || (!eventUrl.includes('/e/') && !eventUrl.includes('/events/'))) {
         return null;
       }
 
-      const fullUrl = eventUrl.startsWith('http') 
+      // Build full URL
+      let fullUrl = eventUrl.startsWith('http') 
         ? eventUrl 
         : `${this.baseUrl}${eventUrl.startsWith('/') ? eventUrl : '/' + eventUrl}`;
+      
+      // Ensure URL is from Eventbrite domain
+      if (!fullUrl.includes('eventbrite')) {
+        logger.warn(`[Eventbrite] Event URL doesn't contain 'eventbrite': ${fullUrl}`);
+        return null;
+      }
 
       // Extract title
       const title = this.extractText($, $element, '[data-testid="event-title"]') ||

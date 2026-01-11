@@ -99,40 +99,52 @@ class EventController {
       
       if (latitude && longitude) {
         // Location-based query (Events Near Me)
-        // Calculate distance from user location to Sydney center
-        const sydneyCenter = getSydneyCenter();
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
-        const maxRadius = parseFloat(radius) || 50;
+        const maxRadius = parseFloat(radius) || 50; // Default 50km radius
         
-        const distanceToSydney = calculateDistance(
-          userLat,
-          userLon,
-          sydneyCenter.latitude,
-          sydneyCenter.longitude
-        );
+        logger.info(`Location-based query: user at (${userLat}, ${userLon}), max radius: ${maxRadius}km`);
         
-        logger.info(`Location-based query: user at (${userLat}, ${userLon}), distance to Sydney: ${distanceToSydney.toFixed(2)}km, max radius: ${maxRadius}km`);
+        // Get all Sydney events first
+        const allEvents = await Event.find({ ...query, city: 'Sydney' }).lean().maxTimeMS(10000);
         
-        // If user is too far from Sydney, return no events
-        if (distanceToSydney > maxRadius) {
-          logger.info(`User is ${distanceToSydney.toFixed(2)}km away from Sydney, which exceeds the ${maxRadius}km radius. Returning no events.`);
-          events = [];
-          total = 0;
-        } else {
-          // User is within radius, return Sydney events
-          [events, total] = await Promise.all([
-            Event.find(query)
-              .sort(sort)
-              .skip(skip)
-              .limit(limitNum)
-              .lean()
-              .maxTimeMS(10000), // 10 second timeout
-            Event.countDocuments(query).maxTimeMS(10000) // 10 second timeout
-          ]);
+        // Filter events by distance from user location
+        const nearbyEvents = [];
+        for (const event of allEvents) {
+          let eventLat, eventLon;
           
-          logger.info(`User is within ${maxRadius}km radius. Returning ${events.length} events.`);
+          // If event has coordinates, use them
+          if (event.latitude && event.longitude) {
+            eventLat = event.latitude;
+            eventLon = event.longitude;
+          } else {
+            // Fallback: use Sydney center coordinates for events without specific location
+            const sydneyCenter = getSydneyCenter();
+            eventLat = sydneyCenter.latitude;
+            eventLon = sydneyCenter.longitude;
+          }
+          
+          const distance = calculateDistance(userLat, userLon, eventLat, eventLon);
+          
+          if (distance <= maxRadius) {
+            nearbyEvents.push(event);
+          }
         }
+        
+        // Apply sorting and pagination to filtered results
+        nearbyEvents.sort((a, b) => {
+          const aVal = a[sortBy];
+          const bVal = b[sortBy];
+          if (sortOrder === 'desc') {
+            return bVal > aVal ? 1 : bVal < aVal ? -1 : 0;
+          }
+          return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        });
+        
+        total = nearbyEvents.length;
+        events = nearbyEvents.slice(skip, skip + limitNum);
+        
+        logger.info(`Found ${total} events within ${maxRadius}km radius. Returning ${events.length} events for page ${page}.`);
       } else {
         // Regular query
         [events, total] = await Promise.all([

@@ -209,24 +209,23 @@ const EventListing = () => {
   };
 
   // Handle redirect to event page
-  const handleRedirectToEvent = () => {
+  const handleRedirectToEvent = (eventToRedirect = selectedEvent) => {
     console.log('🔄 handleRedirectToEvent called');
-    console.log('Selected event:', selectedEvent);
+    console.log('Event to redirect:', eventToRedirect);
     
-    if (!selectedEvent) {
-      console.error('❌ No selected event found');
+    if (!eventToRedirect) {
+      console.error('❌ No event found for redirect');
       alert('Error: Event information not found. Please try again.');
       return;
     }
 
-    const eventUrl = selectedEvent.originalEventUrl;
+    // Use originalEventUrl from the event - this should be the correct source URL
+    let eventUrl = eventToRedirect.originalEventUrl;
     
-    console.log('📍 Event URL to redirect to:', eventUrl);
-    
+    // Validate URL exists and is from the correct source
     if (!eventUrl || eventUrl.trim() === '') {
-      console.error('❌ No event URL found in selectedEvent:', selectedEvent);
+      console.error('❌ No event URL found in event:', eventToRedirect);
       alert('Error: Event URL not found. Please contact support.');
-      // Close modals even if URL is missing
       setShowSuccessModal(false);
       setShowDuplicateModal(false);
       setSelectedEvent(null);
@@ -241,7 +240,15 @@ const EventListing = () => {
       return;
     }
 
-    console.log('🚀 Opening event URL in new tab:', eventUrl);
+    // Verify URL matches the event source (for debugging)
+    const sourceWebsite = eventToRedirect.sourceWebsite;
+    if (sourceWebsite === 'Eventbrite' && !eventUrl.includes('eventbrite')) {
+      console.warn('⚠️ Warning: Eventbrite event has non-Eventbrite URL:', eventUrl);
+    } else if (sourceWebsite === 'Meetup' && !eventUrl.includes('meetup')) {
+      console.warn('⚠️ Warning: Meetup event has non-Meetup URL:', eventUrl);
+    }
+
+    console.log(`🚀 Opening ${sourceWebsite} event URL in new tab:`, eventUrl);
     
     // Try multiple methods to ensure redirect works
     let redirectSuccess = false;
@@ -317,13 +324,25 @@ const EventListing = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header Section */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
-          Live Events in Sydney
-        </h2>
-        <p className="text-gray-600">
-          Discover upcoming events, concerts, shows, and more happening in Sydney, Australia
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Live Events in Sydney
+          </h2>
+          <p className="text-gray-600">
+            Discover upcoming events, concerts, shows, and more happening in Sydney, Australia
+          </p>
+        </div>
+        {/* Admin Export Button */}
+        <a
+          href={`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/v1'}/export/analytics?format=csv`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-secondary px-4 py-2 text-sm"
+          download
+        >
+          📊 Export Analytics
+        </a>
       </div>
 
       {/* Filter Bar */}

@@ -116,16 +116,20 @@ class MeetupService extends GenericScraperService {
    */
   parseEventElement($, $element) {
     try {
-      // Extract event URL
+      // Extract event URL - look for specific event pages
       const eventUrl = this.extractAttr($, $element, 'href') ||
+                      $element.find('a[href*="/events/"]').first().attr('href') ||
                       $element.find('a').first().attr('href') ||
                       $element.closest('a').attr('href') || '';
 
+      // Ensure it's a specific event page (contains /events/ for Meetup event pages)
+      // Not a category/search page
       if (!eventUrl || !eventUrl.includes('/events/')) {
         return null;
       }
 
-      const fullUrl = eventUrl.startsWith('http')
+      // Build full URL
+      let fullUrl = eventUrl.startsWith('http')
         ? eventUrl
         : `${this.baseUrl}${eventUrl.startsWith('/') ? eventUrl : '/' + eventUrl}`;
 

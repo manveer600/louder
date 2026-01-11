@@ -16,7 +16,7 @@ class SchedulerService {
 
   /**
    * Start scheduled scraping job
-   * Default: Every 6 hours (configurable via env)
+   * Default: Every 10 minutes (configurable via env, max 10 minutes)
    */
   startScrapingJob() {
     if (this.isRunning) {
@@ -24,13 +24,11 @@ class SchedulerService {
       return;
     }
 
-    // Convert hours to cron expression
-    // If interval is 6 hours: '0 */6 * * *' (every 6 hours)
-    // If interval is 12 hours: '0 */12 * * *' (every 12 hours)
-    const hours = parseInt(SCRAPING_INTERVAL_HOURS) || 6;
-    const cronExpression = `0 */${hours} * * *`; // Every N hours at minute 0
+    // Use 10 minutes interval (max as per requirements)
+    // Cron expression: '*/10 * * * *' means every 10 minutes
+    const cronExpression = '*/10 * * * *'; // Every 10 minutes
 
-    logger.info(`Starting scheduled scraping job. Interval: ${hours} hours (${cronExpression})`);
+    logger.info(`Starting scheduled scraping job. Interval: 10 minutes (${cronExpression})`);
 
     const job = cron.schedule(cronExpression, async () => {
       logger.info('Scheduled scraping job triggered');

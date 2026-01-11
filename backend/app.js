@@ -39,6 +39,7 @@ if (NODE_ENV === 'production') {
 // Import routes
 const eventRoutes = require('./routes/event.routes');
 const userRoutes = require('./routes/user.routes');
+const exportRoutes = require('./routes/export.routes');
 
 // Initialize Express app
 const app = express();
@@ -101,6 +102,7 @@ app.get('/health', (req, res) => {
 const apiBase = `/api/${API_VERSION}`;
 app.use(`${apiBase}/events`, eventRoutes);
 app.use(`${apiBase}/users`, userRoutes);
+app.use(`${apiBase}/export`, exportRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

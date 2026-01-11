@@ -90,6 +90,16 @@ const eventSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  latitude: {
+    type: Number,
+    default: null,
+    index: true
+  },
+  longitude: {
+    type: Number,
+    default: null,
+    index: true
   }
 }, {
   timestamps: true,
