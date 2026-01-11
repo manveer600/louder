@@ -219,14 +219,17 @@ class EventController {
       }
       
       // Normalize category counts to match CATEGORIES enum format
+      // ALWAYS return all categories, even with 0 count
       const normalizedCategoryCounts = CATEGORIES.map(cat => ({
         name: cat,
         count: categoryCounts[cat] || 0
       }));
 
       logger.info(`Category counts calculated from filtered dataset:`, normalizedCategoryCounts);
+      logger.info(`Total events in filtered dataset: ${total}, Category counts:`, categoryCounts);
 
       // Always return success, even if no events found
+      // ALWAYS include categoryCounts in response (even when no events or no filters)
       res.status(200).json({
         success: true,
         message: total === 0 ? 'No events found. Run scraping to populate events.' : MESSAGES.EVENT_FETCHED,
@@ -238,7 +241,7 @@ class EventController {
             total: total || 0,
             totalPages: Math.ceil((total || 0) / limitNum) || 1
           },
-          categoryCounts: normalizedCategoryCounts
+          categoryCounts: normalizedCategoryCounts // Always included, calculated from filtered dataset
         }
       });
     } catch (error) {

@@ -15,7 +15,11 @@ import ErrorMessage from './ErrorMessage';
 
 const EventListing = () => {
   const [events, setEvents] = useState([]);
-  const [categories, setCategories] = useState([]);
+  // Initialize categories state - will be populated from API response
+  const [categories, setCategories] = useState(() => {
+    // Return empty array initially - will be set from first API response
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
@@ -61,7 +65,9 @@ const EventListing = () => {
         sortOrder: 'asc'
       };
 
+      console.log('📡 Fetching events with params:', params);
       const response = await eventAPI.getEvents(params);
+      console.log('📥 Received API response:', response);
 
       if (response && response.success) {
         setEvents(response.data?.events || []);
@@ -74,10 +80,24 @@ const EventListing = () => {
         };
         setPagination(newPagination);
         
-        // Update category counts from the same filtered dataset
+        // ALWAYS update category counts from API response (even on initial load)
+        // This ensures counts reflect the filtered dataset and are never defaulted to 0
+        // Backend always returns categoryCounts, so this should always execute
         if (response.data?.categoryCounts && Array.isArray(response.data.categoryCounts)) {
-          console.log('Updating category counts from events response:', response.data.categoryCounts);
+          console.log('✅ Updating category counts from API response:', response.data.categoryCounts);
+          console.log('📊 Category counts before update:', categories);
           setCategories(response.data.categoryCounts);
+          console.log('✅ Category counts updated');
+        } else {
+          // This should not happen - backend always returns categoryCounts
+          // Log error but don't set to 0 - keep existing or wait for next response
+          console.error('❌ categoryCounts missing from API response!');
+          console.error('Response structure:', {
+            hasData: !!response.data,
+            hasCategoryCounts: !!response.data?.categoryCounts,
+            isArray: Array.isArray(response.data?.categoryCounts),
+            fullResponse: response
+          });
         }
         
         setError(null); // Clear any previous errors
@@ -93,19 +113,8 @@ const EventListing = () => {
     }
   }, [filters, pagination.limit]);
 
-  // Initialize categories with default structure (counts will come from events API)
-  const initializeCategories = useCallback(() => {
-    const defaultCategories = [
-      'Music', 'Sports', 'Comedy', 'Theater', 'Arts', 
-      'Technology', 'Food & Drink', 'Business', 'Education', 
-      'Health & Wellness', 'Family', 'Other'
-    ].map(name => ({ name, count: 0 }));
-    setCategories(defaultCategories);
-  }, []);
-
-  // Initial load
+  // Initial load - fetch events which will include category counts
   useEffect(() => {
-    initializeCategories(); // Initialize with default structure
     fetchEvents(1); // Category counts will come from this response
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
